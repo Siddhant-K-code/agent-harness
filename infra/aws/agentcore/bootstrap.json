@@ -220,9 +220,10 @@
                   }
                 },
                 {
-                  "Sid": "TagCreatedWorkloadIdentity",
+                  "Sid": "CreateTaggedWorkloadIdentity",
                   "Effect": "Allow",
                   "Action": [
+                    "bedrock-agentcore:CreateWorkloadIdentity",
                     "bedrock-agentcore:TagResource"
                   ],
                   "Resource": {
