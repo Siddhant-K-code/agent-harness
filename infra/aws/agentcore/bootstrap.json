@@ -2,10 +2,11 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Description": "Agent harness: scoped GitHub OIDC bootstrap for bounded AgentCore experiments. No model access or long-lived access keys.",
   "Parameters": {
-    "GitHubRepository": {
+    "GitHubSubjectPrefix": {
       "Type": "String",
-      "Default": "Siddhant-K-code/agent-harness",
-      "AllowedPattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
+      "Default": "repo:Siddhant-K-code@55068936/agent-harness@1358016254",
+      "AllowedPattern": "repo:[A-Za-z0-9_.-]+@[0-9]+/[A-Za-z0-9_.-]+@[0-9]+",
+      "Description": "Exact immutable subject prefix from GitHub OIDC settings, without the branch suffix."
     }
   },
   "Rules": {
@@ -162,7 +163,7 @@
                 "StringEquals": {
                   "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                   "token.actions.githubusercontent.com:sub": {
-                    "Fn::Sub": "repo:${GitHubRepository}:ref:refs/heads/main"
+                    "Fn::Sub": "${GitHubSubjectPrefix}:ref:refs/heads/main"
                   }
                 }
               }

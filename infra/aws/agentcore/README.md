@@ -15,7 +15,9 @@ aws cloudformation deploy --stack-name agent-harness-bootstrap --template-file i
 
 The template creates one ECR repository, a GitHub OIDC provider, an AgentCore identity service-linked role, an execution role, and a deployment role. Inspect existing account resources first: this minimal template expects those names and the GitHub OIDC provider to be absent. Adapt it to reference preexisting resources rather than replacing resources belonging to another project.
 
-Set repository variables `AGENT_HARNESS_AWS_ROLE_ARN` and `AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN` from stack outputs `DeploymentRoleArn` and `RuntimeRoleArn`. These are identifiers, not secrets. The OIDC trust admits only this repository's `main` branch; the workflow runs on manual dispatch with concurrency one. It obtains short-lived credentials and builds/pushes an immutable digest to ECR. The bootstrap contains no model permissions, NAT gateway, database, cluster, or always-on compute.
+For a different repository, read its `sub_claim_prefix` with `gh api repos/OWNER/REPO/actions/oidc/customization/sub` and pass it as `GitHubSubjectPrefix`. GitHub requires immutable IDs for newly created repositories after July 15, 2026; do not substitute the older name-only subject. The checked-in default identifies this exact repository.
+
+Set repository variables `AGENT_HARNESS_AWS_ROLE_ARN` and `AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN` from stack outputs `DeploymentRoleArn` and `RuntimeRoleArn`. These are identifiers, not secrets. The OIDC trust admits only this repository's immutable owner/repository IDs and `main` branch; the workflow runs on manual dispatch with concurrency one. It obtains short-lived credentials and builds/pushes an immutable digest to ECR. The bootstrap contains no model permissions, NAT gateway, database, cluster, or always-on compute.
 
 ```sh
 gh workflow run aws-probe.yml --ref main
@@ -40,3 +42,5 @@ bin/agentcore-probe --cleanup --state PATH_TO_STATE_JSON
 After all experiments and runtime cleanup, remove the bootstrap with `aws cloudformation delete-stack --stack-name agent-harness-bootstrap --profile agent-harness --region us-east-1`, then wait for `stack-delete-complete`. This removes only the resources managed by this stack. Do not delete an account-level OIDC provider or service-linked role still used by another project; detach shared resources from the stack first if you have since reused them.
 
 References: [command API](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-execute-command.html), [lifecycle](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-lifecycle-settings.html), [IAM actions and scopes](https://docs.aws.amazon.com/service-authorization/latest/reference/list_bedrock-agentcore.html), [identity service-linked role](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html), [HTTP contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html).
+
+OIDC reference: [GitHub immutable subject claims](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/).
