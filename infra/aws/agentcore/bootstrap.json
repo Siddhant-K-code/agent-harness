@@ -194,10 +194,11 @@
                   }
                 },
                 {
-                  "Sid": "CreateTaggedDefaultEndpoint",
+                  "Sid": "CreateTaggedRuntimeDependencies",
                   "Effect": "Allow",
                   "Action": [
-                    "bedrock-agentcore:CreateAgentRuntimeEndpoint"
+                    "bedrock-agentcore:CreateAgentRuntimeEndpoint",
+                    "bedrock-agentcore:TagResource"
                   ],
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*"
@@ -209,6 +210,12 @@
                       },
                       "aws:RequestTag/Project": "agent-harness",
                       "aws:RequestTag/Purpose": "bounded-probe"
+                    },
+                    "ForAllValues:StringEquals": {
+                      "aws:TagKeys": [
+                        "Project",
+                        "Purpose"
+                      ]
                     }
                   }
                 },
@@ -221,8 +228,7 @@
                     "bedrock-agentcore:DeleteAgentRuntimeEndpoint",
                     "bedrock-agentcore:InvokeAgentRuntime",
                     "bedrock-agentcore:InvokeAgentRuntimeCommand",
-                    "bedrock-agentcore:StopRuntimeSession",
-                    "bedrock-agentcore:TagResource"
+                    "bedrock-agentcore:StopRuntimeSession"
                   ],
                   "Resource": [
                     {
