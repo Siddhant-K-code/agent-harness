@@ -246,6 +246,25 @@
                   }
                 },
                 {
+                  "Sid": "CreateIdentityInDefaultDirectory",
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock-agentcore:CreateWorkloadIdentity"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestedRegion": {
+                        "Ref": "AWS::Region"
+                      },
+                      "aws:RequestTag/Project": "agent-harness",
+                      "aws:RequestTag/Purpose": "bounded-probe"
+                    }
+                  }
+                },
+                {
                   "Sid": "ProbeRuntime",
                   "Effect": "Allow",
                   "Action": [
