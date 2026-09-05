@@ -15,7 +15,7 @@ import (
 
 const MaxOutputBytes = 64 << 10
 
-var ErrCleanup = errors.New("container cleanup failed")
+var ErrCleanup = errors.New("executor cleanup is unconfirmed")
 
 type Docker struct{ Workspace, Image string }
 
@@ -61,6 +61,11 @@ func (d Docker) Capabilities() Capabilities {
 }
 
 func (d Docker) Execute(ctx context.Context, request Request) (process.Result, error) {
+	if request.TimeoutMS > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(request.TimeoutMS)*time.Millisecond)
+		defer cancel()
+	}
 	if !referencePattern.MatchString(request.ID) {
 		return process.Result{}, errors.New("invalid execution reference")
 	}

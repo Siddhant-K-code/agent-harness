@@ -1,6 +1,6 @@
 // Package agentcore implements the real AWS command protocol. It intentionally
-// does not satisfy sandbox.Executor until durable artifact transfer and stop
-// inspection can meet that interface's guarantees. Commands require the guard.
+// supports command execution and artifact transport. Executor adds durable
+// per-command runtimes and whole-runtime deletion. Commands require the guard.
 package agentcore
 
 import (
@@ -116,14 +116,17 @@ func (c Client) Command(ctx context.Context, session, script string, timeoutSeco
 	return c.CommandProfile(ctx, session, script, "work", timeoutSeconds)
 }
 func (c Client) CommandProfile(ctx context.Context, session, script, profile string, timeoutSeconds int32) (Result, error) {
+	return c.commandObserved(ctx, session, script, profile, timeoutSeconds, nil)
+}
+func (c Client) commandObserved(ctx context.Context, session, script, profile string, timeoutSeconds int32, onStart func() error) (Result, error) {
 	command, err := GuardedCommand(profile, script)
 	if err != nil {
 		return Result{}, err
 	}
-	return c.invokeCommand(ctx, session, command, timeoutSeconds)
+	return c.invokeCommand(ctx, session, command, timeoutSeconds, onStart)
 }
 
-func (c Client) invokeCommand(ctx context.Context, session, command string, timeoutSeconds int32) (result Result, err error) {
+func (c Client) invokeCommand(ctx context.Context, session, command string, timeoutSeconds int32, onStart func() error) (result Result, err error) {
 	if len(session) < 33 || len(session) > 256 || len(command) == 0 || len(command) > 64<<10 || timeoutSeconds < 1 || timeoutSeconds > 3600 {
 		return result, errors.New("invalid command request bounds")
 	}
@@ -147,6 +150,11 @@ func (c Client) invokeCommand(ctx context.Context, session, command string, time
 		}
 		if err := result.consume(chunk.Value); err != nil {
 			return result, err
+		}
+		if chunk.Value.ContentStart != nil && onStart != nil {
+			if err := onStart(); err != nil {
+				return result, err
+			}
 		}
 	}
 	if err := stream.Err(); err != nil {

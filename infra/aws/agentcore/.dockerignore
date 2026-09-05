@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!harness-service
+!isolation
+!isolation/guard.c
+!isolation/checks.py

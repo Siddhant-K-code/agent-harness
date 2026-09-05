@@ -1,6 +1,8 @@
 # agent-harness
 
-A coding agent runtime with real OpenAI Responses API calls, real Docker execution, durable events, and independent verification.
+A coding agent runtime with real OpenAI Responses API calls, Docker and AWS execution, durable events, and independent verification.
+
+The new [AWS harness backend](docs/aws-harness.md) transfers checksummed workspaces into disposable AgentCore runtimes and confirms whole-runtime deletion before accepting changes. The manual **AWS harness** workflow includes real transfer/crash acceptance and an optional bounded GPT-5.4 run. Docker remains the default.
 
 The first milestone is a complete local loop: load a task, copy a committed repository snapshot, let the model inspect and edit it in Docker, run an operator-supplied verifier, and save the patch and outcome. The runtime contains no simulated model or executor. The [first real GPT-5.4 run passed](docs/validation.md), using three requests and about $0.013 in estimated token charges.
 

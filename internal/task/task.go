@@ -23,15 +23,22 @@ type Limits struct {
 	MaxUSD          float64 `json:"max_usd"`
 }
 type Spec struct {
-	SchemaVersion int    `json:"schema_version"`
-	Name          string `json:"name"`
-	Goal          string `json:"goal"`
-	Repository    string `json:"repository"`
-	Ref           string `json:"ref"`
-	Model         string `json:"model"`
-	Image         string `json:"image"`
-	Verifier      string `json:"verifier"`
-	Limits        Limits `json:"limits"`
+	Backend       string     `json:"backend,omitempty"`
+	AWS           *AWSConfig `json:"aws,omitempty"`
+	SchemaVersion int        `json:"schema_version"`
+	Name          string     `json:"name"`
+	Goal          string     `json:"goal"`
+	Repository    string     `json:"repository"`
+	Ref           string     `json:"ref"`
+	Model         string     `json:"model"`
+	Image         string     `json:"image"`
+	Verifier      string     `json:"verifier"`
+	Limits        Limits     `json:"limits"`
+}
+
+type AWSConfig struct {
+	Region        string `json:"region"`
+	ExecutionRole string `json:"execution_role"`
 }
 
 // Paths are relative to the task file.
@@ -77,6 +84,16 @@ func Decode(r io.Reader) (Spec, error) {
 	return s, s.Validate()
 }
 func (s Spec) Validate() error {
+	if s.Backend != "" && s.Backend != "docker" && s.Backend != "agentcore" {
+		return errors.New("backend must be docker or agentcore")
+	}
+	if s.Backend == "agentcore" {
+		if s.AWS == nil || s.AWS.Region != "us-east-1" || s.AWS.ExecutionRole == "" {
+			return errors.New("agentcore requires aws.region us-east-1 and aws.execution_role")
+		}
+	} else if s.AWS != nil {
+		return errors.New("aws configuration requires agentcore backend")
+	}
 	if s.SchemaVersion != 1 {
 		return errors.New("schema_version must be 1")
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/runner"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
+	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 	"github.com/Siddhant-K-code/agent-harness/internal/trace/agenttrace"
@@ -70,18 +71,24 @@ func run(args []string) error {
 		if args[0] == "doctor" {
 			checkCtx, stop := context.WithTimeout(ctx, 15*time.Second)
 			defer stop()
-			image, dockerErr := sandbox.Check(checkCtx, spec.Image)
-			result := map[string]any{"key_configured": keyErr == nil, "image_id": image, "model": spec.Model, "max_usd": spec.Limits.MaxUSD}
+			image := spec.Image
+			var backendErr error
+			if spec.Backend == "agentcore" {
+				_, backendErr = agentcore.Check(checkCtx, spec.AWS.Region, spec.Image, spec.AWS.ExecutionRole)
+			} else {
+				image, backendErr = sandbox.Check(checkCtx, spec.Image)
+			}
+			result := map[string]any{"key_configured": keyErr == nil, "image_id": image, "backend": spec.Backend, "model": spec.Model, "max_usd": spec.Limits.MaxUSD}
 			if keyErr != nil {
 				result["key_error"] = keyErr.Error()
 			}
-			if dockerErr != nil {
-				result["docker_error"] = dockerErr.Error()
+			if backendErr != nil {
+				result["backend_error"] = backendErr.Error()
 			}
 			if err = encode(result); err != nil {
 				return err
 			}
-			return errors.Join(keyErr, dockerErr)
+			return errors.Join(keyErr, backendErr)
 		}
 		if keyErr != nil {
 			return keyErr
@@ -108,7 +115,7 @@ func run(args []string) error {
 	defer db.Close()
 	switch args[0] {
 	case "reconcile":
-		reconcileCtx, stop := context.WithTimeout(ctx, 2*time.Minute)
+		reconcileCtx, stop := context.WithTimeout(ctx, 15*time.Minute)
 		defer stop()
 		report, e := runner.Reconcile(reconcileCtx, db, root, f.Arg(0))
 		if e != nil {

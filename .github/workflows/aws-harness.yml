@@ -1,0 +1,114 @@
+name: AWS harness
+on:
+  workflow_dispatch:
+    inputs:
+      live_model:
+        description: Run GPT-5.4 after backend acceptance (maximum $0.50 estimated model spend)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: agent-harness-aws-probe
+  cancel-in-progress: false
+jobs:
+  harness:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      AWS_RETRY_MODE: standard
+      AWS_MAX_ATTEMPTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check live model configuration
+        if: inputs.live_model
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: test -n "$OPENAI_API_KEY" || { echo '::error::Configure the OPENAI_API_KEY repository secret for live model runs.'; exit 1; }
+      - name: Build controller and service
+        run: |
+          go build -o bin/harness ./cmd/harness
+          go build -o bin/agentcore-cleanup ./cmd/agentcore-cleanup
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o infra/aws/agentcore/harness-service ./cmd/agentcore-service
+          sh integrations/agenttrace/setup.sh
+          sh examples/normalize-tags/setup.sh
+          mkdir -p .harness/aws-e2e/acceptance
+      - name: Obtain scoped AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AGENT_HARNESS_AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-session-name: harness-${{ github.run_id }}
+          mask-aws-account-id: true
+      - name: Authenticate ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push immutable image
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          PROBE_TAG: probe-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/agent-harness-probe:$PROBE_TAG"
+          docker buildx build --platform linux/arm64 --provenance=false --load --pull -t "$image" -t agent-harness-guard:test infra/aws/agentcore
+          HARNESS_AGENTCORE_DOCKER_TEST=1 go test -count=1 ./internal/sandbox/agentcore -run TestDockerArtifactService
+          docker push "$image"
+          digest=$(aws ecr describe-images --repository-name agent-harness-probe --image-ids "imageTag=$PROBE_TAG" --query 'imageDetails[0].imageDigest' --output text)
+          echo "uri=$REGISTRY/agent-harness-probe@$digest" >> "$GITHUB_OUTPUT"
+          echo "tag=$PROBE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Real artifact transfer and worker crash acceptance
+        env:
+          HARNESS_AGENTCORE_TEST: '1'
+          HARNESS_AGENTCORE_IMAGE: ${{ steps.image.outputs.uri }}
+          HARNESS_AGENTCORE_ROLE: ${{ vars.AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN }}
+          HARNESS_AGENTCORE_EVIDENCE: ${{ github.workspace }}/.harness/aws-e2e/acceptance
+        run: go test -count=1 -v -timeout 30m ./internal/runner -run '^TestAWS(ExecutorRoundTrip|WorkerCrashReconciliation)$'
+      - name: Run real GPT-5.4 harness on AWS
+        if: inputs.live_model
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          HARNESS_AGENTCORE_IMAGE: ${{ steps.image.outputs.uri }}
+          HARNESS_AGENTCORE_ROLE: ${{ vars.AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN }}
+        run: |
+          python3 infra/aws/agentcore/make_task.py
+          bin/harness doctor --state-dir .harness/aws-e2e/model --task .harness/aws-e2e/task.json
+          bin/harness run --state-dir .harness/aws-e2e/model --task .harness/aws-e2e/task.json > .harness/aws-e2e/model-report.json
+      - name: Reconcile recorded runtime cleanup
+        if: always()
+        run: |
+          mkdir -p .harness/aws-e2e
+          if [ -x bin/agentcore-cleanup ]; then
+            bin/agentcore-cleanup --state-dir .harness/aws-e2e > .harness/aws-e2e/cleanup.json
+          fi
+      - name: Audit absence and remove owned logs and image
+        if: always() && steps.ecr.outcome == 'success'
+        env:
+          PROBE_TAG: probe-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 infra/aws/agentcore/cleanup_harness.py
+      - name: Export and verify native model trace
+        if: always() && inputs.live_model
+        run: |
+          if [ -s .harness/aws-e2e/model-report.json ]; then
+            .harness/agenttrace-venv/bin/python integrations/agenttrace/verify_aws_harness.py
+          fi
+      - name: Save private evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-harness-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          retention-days: 7
+          path: .harness/aws-e2e/

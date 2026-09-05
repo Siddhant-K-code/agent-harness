@@ -27,9 +27,10 @@ type Capabilities struct {
 }
 
 type Request struct {
-	ID       string
-	Command  string
-	ReadOnly bool
+	ID        string
+	Command   string
+	ReadOnly  bool
+	TimeoutMS int
 }
 
 type ExecutionState struct {

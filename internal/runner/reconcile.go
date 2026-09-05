@@ -14,6 +14,7 @@ import (
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/ownership"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
+	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/workspace"
 )
@@ -53,6 +54,18 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 	var lastVerificationPassed bool
 	price, priceErr := model.Pricing(r.Spec.Model)
 	report = Report{RunID: r.ID, Model: r.Spec.Model, BillingUnknown: priceErr != nil, Reconciled: true}
+	var executor sandbox.Executor = sandbox.Docker{}
+	if r.Spec.Backend == "agentcore" {
+		if err := r.Spec.Validate(); err != nil {
+			return report, err
+		}
+		cfg, err := agentcore.Check(ctx, r.Spec.AWS.Region, r.Spec.Image, r.Spec.AWS.ExecutionRole)
+		if err != nil {
+			return report, err
+		}
+		executor = &agentcore.Executor{Config: cfg, Image: r.Spec.Image, Role: r.Spec.AWS.ExecutionRole, Root: directory}
+	}
+	report.Backend = executor.Capabilities().Backend
 	for _, event := range events {
 		switch event.Type {
 		case "execution.prepared":
@@ -63,7 +76,7 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 			if err := json.Unmarshal(event.Data, &d); err != nil {
 				return report, err
 			}
-			if d.Backend != "docker" {
+			if d.Backend != executor.Capabilities().Backend {
 				return report, errors.New("reconciliation requires the recorded backend adapter")
 			}
 			// The execution must belong to this run, not merely match the general name format.
@@ -129,17 +142,16 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 		report.EstimatedUSD = price.Cost(report.InputTokens, report.OutputTokens)
 	}
 	for reference := range prepared {
-		docker := sandbox.Docker{}
-		observed, err := docker.Inspect(ctx, reference)
+		observed, err := executor.Inspect(ctx, reference)
 		if err != nil {
 			return report, err
 		}
-		if !observed.Exists {
+		if !observed.Exists && report.Backend == "docker" {
 			// An orphaned Docker client or an in-flight daemon request could
 			// create the container after this lookup. Do not infer cleanup.
 			return report, fmt.Errorf("%w: %s", ErrUncertainDispatch, reference)
 		}
-		if err := docker.Stop(ctx, reference); err != nil {
+		if err := executor.Stop(ctx, reference); err != nil {
 			return report, fmt.Errorf("stop recorded execution: %w", err)
 		}
 		if _, err := db.ConfirmExecutionCleanup(ctx, id, r.WorkerID, reference); err != nil {
@@ -168,7 +180,11 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 		report.Verified = r.State == store.Completed && lastVerificationPassed
 	}
 	if report.BaseCommit != "" {
-		w := workspace.Workspace{Root: directory, Path: filepath.Join(directory, "workspace"), GitDir: filepath.Join(directory, "git"), Base: report.BaseCommit}
+		currentPath, err := workspace.Current(directory)
+		if err != nil {
+			return report, err
+		}
+		w := workspace.Workspace{Root: directory, Path: currentPath, GitDir: filepath.Join(directory, "git"), Base: report.BaseCommit}
 		patch, err := w.Patch(ctx)
 		if err != nil {
 			return report, fmt.Errorf("preserve interrupted patch: %w", err)

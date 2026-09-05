@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 )
 
 const MaxSnapshotBytes int64 = 64 << 20
@@ -44,6 +45,12 @@ func (w Workspace) SnapshotTo(ctx context.Context, directory string) (Snapshot, 
 		return result, err
 	}
 	defer root.Close()
+	return SnapshotRootTo(ctx, root, directory)
+}
+
+// SnapshotRootTo also serves remote capture through an already confined Root.
+func SnapshotRootTo(ctx context.Context, root *os.Root, directory string) (Snapshot, error) {
+	var result Snapshot
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return result, err
 	}
@@ -105,9 +112,16 @@ func (w Workspace) SnapshotTo(ctx context.Context, directory string) (Snapshot, 
 			return err
 		}
 		if header.Typeflag == tar.TypeReg {
-			file, err := root.Open(name)
+			// Remote candidates may still have background writers until their
+			// runtime is deleted. Never follow a replaced link or block on a FIFO.
+			file, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 			if err != nil {
 				return err
+			}
+			opened, statErr := file.Stat()
+			if statErr != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) || opened.Size() != header.Size {
+				file.Close()
+				return errors.New("snapshot file changed during capture")
 			}
 			_, copyErr := io.CopyN(tw, file, header.Size)
 			closeErr := file.Close()
@@ -173,11 +187,15 @@ func VerifySnapshot(filename string, s Snapshot) error {
 	if !info.Mode().IsRegular() || info.Size() != s.Bytes {
 		return errors.New("snapshot size or file type mismatch")
 	}
-	f, err := os.Open(filename)
+	f, err := os.OpenFile(filename, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	opened, err := f.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) || opened.Size() != s.Bytes {
+		return errors.New("snapshot file changed during validation")
+	}
 	h := sha256.New()
 	if _, err := io.Copy(h, io.LimitReader(f, s.Bytes+1)); err != nil {
 		return err

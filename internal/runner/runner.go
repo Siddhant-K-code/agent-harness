@@ -18,9 +18,11 @@ import (
 	"github.com/Siddhant-K-code/agent-harness/internal/ownership"
 	"github.com/Siddhant-K-code/agent-harness/internal/process"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
+	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 	"github.com/Siddhant-K-code/agent-harness/internal/workspace"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/openai/openai-go/v3/responses"
 )
 
@@ -30,6 +32,8 @@ type Runner struct {
 	Progress  io.Writer
 }
 type Report struct {
+	Backend              string      `json:"backend,omitempty"`
+	AWSBillingUSD        *float64    `json:"aws_billing_usd"`
 	RunID                string      `json:"run_id"`
 	State                store.State `json:"state"`
 	Reason               string      `json:"reason"`
@@ -62,7 +66,13 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(spec.Limits.TimeoutMS)*time.Millisecond)
 	defer cancel()
-	image, err := sandbox.Check(ctx, spec.Image)
+	var remoteConfig aws.Config
+	image := spec.Image
+	if spec.Backend == "agentcore" {
+		remoteConfig, err = agentcore.Check(ctx, spec.AWS.Region, spec.Image, spec.AWS.ExecutionRole)
+	} else {
+		image, err = sandbox.Check(ctx, spec.Image)
+	}
 	if err != nil {
 		return report, err
 	}
@@ -152,24 +162,30 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 			select {
 			case <-done:
 				return
-			case <-ctx.Done():
-				return
 			case <-ticker.C:
-				current, e := r.Store.Get(ctx, created.ID)
-				if e != nil || current.State == store.Cancelling {
+				heartbeat, stopHeartbeat := context.WithTimeout(context.Background(), 3*time.Second)
+				current, e := r.Store.Get(heartbeat, created.ID)
+				if e != nil {
+					stopHeartbeat()
 					cancel()
 					return
 				}
+				if current.State == store.Cancelling {
+					cancel()
+				}
 				if current.WorkerID != owner {
+					stopHeartbeat()
 					cancel()
 					return
 				}
 				if time.Until(current.LeaseExpires) < 20*time.Second {
-					if _, e := r.Store.Renew(ctx, created.ID, owner); e != nil {
+					if _, e := r.Store.Renew(heartbeat, created.ID, owner); e != nil {
+						stopHeartbeat()
 						cancel()
 						return
 					}
 				}
+				stopHeartbeat()
 			}
 		}
 	}()
@@ -192,6 +208,10 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		return report, err
 	}
 	var executor sandbox.Executor = sandbox.Docker{Workspace: w.Path, Image: image}
+	if spec.Backend == "agentcore" {
+		executor = &agentcore.Executor{Config: remoteConfig, Image: image, Role: spec.AWS.ExecutionRole, Root: root, Workspace: &w, Progress: r.Progress}
+	}
+	report.Backend = executor.Capabilities().Backend
 	if err = record("executor.ready", executor.Capabilities(), false); err != nil {
 		return report, err
 	}
@@ -203,13 +223,15 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		if e = record("execution.prepared", map[string]any{"execution_id": id, "backend": executor.Capabilities().Backend, "readonly": readonly}, false); e != nil {
 			return res, e
 		}
-		res, execErr = executor.Execute(toolCtx, sandbox.Request{ID: id, Command: command, ReadOnly: readonly})
+		report.CleanupConfirmed = false
+		res, execErr = executor.Execute(toolCtx, sandbox.Request{ID: id, Command: command, ReadOnly: readonly, TimeoutMS: spec.Limits.ToolTimeoutMS})
 		if errors.Is(execErr, sandbox.ErrCleanup) {
 			return res, execErr
 		}
 		if e = record("execution.finished", map[string]any{"execution_id": id, "cleanup_confirmed": true}, false); e != nil {
 			return res, errors.Join(execErr, e)
 		}
+		report.CleanupConfirmed = true
 		return res, execErr
 	}
 	client := model.New(r.Key, spec.Model)
@@ -280,9 +302,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				result = map[string]string{"error": "command is empty"}
 				break
 			}
-			toolCtx, stop := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
-			res, e := execute(toolCtx, step, args.Command, false)
-			stop()
+			res, e := execute(ctx, step, args.Command, false)
 			if errors.Is(e, sandbox.ErrCleanup) {
 				return report, e
 			}
@@ -302,9 +322,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				result = map[string]string{"error": err.Error()}
 				break
 			}
-			verifyCtx, stop := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
-			res, e := execute(verifyCtx, step, string(verifier), true)
-			stop()
+			res, e := execute(ctx, step, string(verifier), true)
 			report.VerificationAttempts++
 			if e != nil {
 				return report, fmt.Errorf("verifier execution: %w", e)
