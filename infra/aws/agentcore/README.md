@@ -6,7 +6,7 @@ The probe initializes real sessions through `InvokeAgentRuntime`, executes comma
 
 ## Validated run
 
-[Workflow 33971620876](https://github.com/Siddhant-K-code/agent-harness/actions/runs/33971620876) passed all nine checks on September 5, 2026. The [sanitized report and independent cleanup audit](../../../docs/evidence/2026-09-05/aws-agentcore/README.md) confirm real command execution and whole-runtime deletion, with no probe images, logs, or workload identities remaining. No new model calls were made. The account's scoped bootstrap and both repository variables are configured; AWS billed cost remains unmeasured.
+[Workflow 33974407163](https://github.com/Siddhant-K-code/agent-harness/actions/runs/33974407163) passed twelve checks on September 5, 2026, including the mandatory command guard and native AgentTrace export. The [report, native trace, replay, and independent cleanup audit](../../../docs/evidence/2026-09-05/aws-isolation/README.md) confirm real command execution and whole-runtime deletion, with no probe images, logs, or workload identities remaining. No new model calls were made. The account's scoped bootstrap and both repository variables are configured; AWS billed cost remains unmeasured. The earlier [nine-check baseline](../../../docs/evidence/2026-09-05/aws-agentcore/README.md) is retained separately.
 
 ## Bootstrap once
 

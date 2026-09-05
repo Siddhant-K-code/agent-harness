@@ -1,0 +1,14 @@
+{
+  "session_id": "c9a78c542e28448636c0dca02d88d1cf",
+  "started_at": 1788621596.5523682,
+  "ended_at": 1788621925.72013,
+  "agent_name": "agent-harness-aws-probe",
+  "tool_calls": 12,
+  "total_duration_ms": 329167.76174,
+  "attribution": {
+    "backend": "aws-agentcore",
+    "harness_schema": "agent-harness.agenttrace.v1",
+    "source_format": "agent-harness.remote.v1",
+    "state": "completed"
+  }
+}

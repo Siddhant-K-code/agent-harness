@@ -1,0 +1,189 @@
+{
+  "version": 2,
+  "region": "us-east-1",
+  "image": "<AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/agent-harness-probe@sha256:b2cfd2943fe28bdf484d30f0a9a50e7915a93561484263ad8406d9585968cab1",
+  "patch_sha256": "a951c168a8cba6beda5d12864093b4bd836f6307d418f58aeb8aa5d1ed97f35c",
+  "verifier_sha256": "03a0a88e5cc53d6a2cfbc1223e06e0d93d72e1e1305ba87ba423325fc3fa78e7",
+  "new_model_calls": 0,
+  "started": "2026-09-05T15:19:56.551245194Z",
+  "finished": "2026-09-05T15:25:25.718372274Z",
+  "checks": [
+    {
+      "name": "nonroot_and_tools",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "v22.23.2\nPython 3.14.7\ngit version 2.54.0\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "command_network_isolation",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "{\"socket_families_denied\": 5, \"io_uring_denied\": true, \"child_inherits_policy\": true, \"no_new_privs\": true}\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "original_bug_rejected",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   ' a ',\n-   'a',\n    'b',\n+   'A',\n+   ''\n  ]\n\n    at [stdin]:13:10\n    at runScriptInThisContext (node:internal/vm:209:10)\n    at node:internal/process/execution:446:12\n    at [stdin]-wrapper:6:24\n    at runScriptInContext (node:internal/process/execution:444:60)\n    at evalFunction (node:internal/process/execution:279:30)\n    at evalTypeScript (node:internal/process/execution:291:3)\n    at node:internal/main/eval_stdin:53:5\n    at Socket.<anonymous> (node:internal/process/execution:201:5)\n    at Socket.emit (node:events:531:35) {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: [ ' a ', 'b', 'A', '' ],\n  expected: [ 'a', 'b' ],\n  operator: 'deepStrictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.2\n",
+        "truncated": false
+      }
+    },
+    {
+      "name": "apply_real_gpt54_patch",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "patching file tags.js\npatching file tags.test.js\ntests passed\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "file_persistence",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "e6708204f8a05b3dea5b36ae528d20b44ae5b1eed46668545bdd7610ea02be96  /workspace/tags.js\ntests passed\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "fresh_session_candidate_transfer",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "patching file tags.js\npatching file tags.test.js\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "verifier_write_isolation",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "{\"mutation_attempts_denied\": 14, \"scratch_writable\": false, \"candidate_bytes_and_mode_unchanged\": true}\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "fresh_session_verification",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "Passed 6 independent cases plus mutation checks.\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "nonzero_exit_and_stderr",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 7,
+        "stdout": "",
+        "stderr": "deliberate-error\n",
+        "truncated": false
+      }
+    },
+    {
+      "name": "bounded_output",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stderr": "",
+        "truncated": true,
+        "stdout_publication": {
+          "omitted": true,
+          "retained_bytes": 65536,
+          "sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3"
+        }
+      }
+    },
+    {
+      "name": "server_timeout",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "TIMED_OUT",
+        "exit_code": -1,
+        "stdout": "",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "controller_disconnect",
+      "result": {
+        "started": true,
+        "finished": false,
+        "status": "",
+        "stdout": "",
+        "stderr": "",
+        "truncated": false
+      },
+      "error": "context deadline exceeded"
+    }
+  ],
+  "stop_acknowledged": true,
+  "runtime_deletion_confirmed": true,
+  "probe_passed": true,
+  "limits_and_gaps": {
+    "automatic_model_calls": false,
+    "command_isolation": "seccomp-allowlist-v1",
+    "command_network_disabled": true,
+    "idle_session_seconds": 60,
+    "max_session_lifetime_seconds": 600,
+    "max_sessions": 3,
+    "network": "PUBLIC",
+    "network_disabled": false,
+    "production_backend_enabled": false,
+    "read_only_verifier_workspace_enforced": true,
+    "session_absence_inspection": false,
+    "verifier_scratch_writable": false,
+    "workspace_disk_quota_enforced": false
+  },
+  "publication": {
+    "workflow_url": "https://github.com/Siddhant-K-code/agent-harness/actions/runs/33974407163",
+    "git_commit": "f1989f5008fa07ed6fabf133e795897dfd81b840",
+    "trace_session_id": "c9a78c542e28448636c0dca02d88d1cf",
+    "session_count": 3,
+    "changes_from_private_report": [
+      "AWS account ID replaced in image URI",
+      "Private command journal omitted; native metadata projection published separately",
+      "Repeated bounded-output stdout omitted; original retained length and SHA-256 recorded"
+    ]
+  }
+}

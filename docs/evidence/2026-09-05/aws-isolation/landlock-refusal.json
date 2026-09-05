@@ -1,0 +1,23 @@
+{
+  "workflow_run": 33973715180,
+  "tested_commit": "289dc5fce06c0283abf5f8c9c7d41eed8d07c8d8",
+  "region": "us-east-1",
+  "started": "2026-09-05T15:06:11.915455292Z",
+  "finished": "2026-09-05T15:06:27.542413674Z",
+  "probe_passed": false,
+  "check": {
+    "name": "nonroot_and_tools",
+    "result": {
+      "started": true,
+      "finished": true,
+      "status": "COMPLETED",
+      "exit_code": 125,
+      "stdout": "",
+      "stderr": "Landlock ABI >= 3 required; command refused\n",
+      "truncated": false
+    }
+  },
+  "runtime_deletion_confirmed": true,
+  "new_model_calls": 0,
+  "interpretation": "The guard started and refused the payload because Landlock ABI >= 3 was unavailable. Native trace export and duplicate replay checks succeeded."
+}

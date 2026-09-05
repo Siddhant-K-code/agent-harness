@@ -1,6 +1,6 @@
 # Native integrations and the improvement loop
 
-Design and implementation status, September 5, 2026. The [local runtime](architecture.md) and [AgentTrace batch export](../integrations/agenttrace/README.md) are implemented. Other adapters and incremental delivery below remain proposed. This plan follows inspection of the linked projects' code.
+Design and implementation status, September 5, 2026. The [local runtime](architecture.md) and [AgentTrace batch export](../integrations/agenttrace/README.md) for both local runs and remote command journals are implemented. Other adapters and incremental delivery below remain proposed. This plan follows inspection of the linked projects' code.
 
 ## Product direction
 
@@ -38,12 +38,12 @@ Every adapter needs a contract version, dependency revision, cancellation behavi
 
 Use the actual Python `TraceEvent`, `SessionMeta`, and `TraceStore` interfaces. The inspected baseline is [agent-trace at b109ec5](https://github.com/Siddhant-K-code/agent-trace/tree/b109ec5b3714b842746e97ee8e975329d8582667). Its native directory contains `meta.json` and `events.ndjson`; its `import` command parses Claude Code logs, so it is not a generic harness-event importer. See the [models](https://github.com/Siddhant-K-code/agent-trace/blob/b109ec5b3714b842746e97ee8e975329d8582667/src/agent_trace/models.py), [store](https://github.com/Siddhant-K-code/agent-trace/blob/b109ec5b3714b842746e97ee8e975329d8582667/src/agent_trace/store.py), and [importer](https://github.com/Siddhant-K-code/agent-trace/blob/b109ec5b3714b842746e97ee8e975329d8582667/src/agent_trace/jsonl_import.py).
 
-Implemented first slice:
+Implemented local and remote slices:
 
 1. `internal/trace/agenttrace` embeds a pinned Python bridge; installation and usage are in `integrations/agenttrace`. Python is needed for export, not for running the agent.
 2. Export a terminal run through `TraceStore` into a private staging directory. Validate with AgentTrace's reader, then publish the complete directory atomically.
 3. Derive stable event IDs from run, attempt, source sequence, and projection version. Record source high-water mark and redaction policy in a manifest. Repeating an identical export is idempotent; a conflicting existing export is an error.
-4. Reuse AgentTrace's replay and comparison tools. Begin with the existing successful GPT-5.4 run, requiring no new model spend.
+4. Reuse AgentTrace's replay and comparison tools. The existing GPT-5.4 run and the [live isolated AWS probe](evidence/2026-09-05/aws-isolation/README.md) load through the real reader and replay renderer without new model spend. Remote export uses actual pre-call intent and post-call observations; a controller disconnect never becomes a fabricated command result.
 
 | Harness evidence | AgentTrace projection |
 | --- | --- |

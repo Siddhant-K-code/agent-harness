@@ -1,6 +1,6 @@
 # Execution backends and the AWS experiment
 
-Design and implementation status, September 5, 2026. Region: `us-east-1`. Docker remains the production executor. The separately implemented AgentCore probe [passed nine real checks and teardown](evidence/2026-09-05/aws-agentcore/README.md). Its scoped bootstrap remains deployed. The first $50 experiment allocation was authorized; the remaining allocations below are proposals.
+Design and implementation status, September 5, 2026. Region: `us-east-1`. Docker remains the production executor. The separately implemented AgentCore probe [passed twelve real checks, native tracing, and teardown](evidence/2026-09-05/aws-isolation/README.md). Its scoped bootstrap remains deployed. The first $50 experiment allocation was authorized; the remaining allocations below are proposals.
 
 ## Backend choice
 
@@ -35,7 +35,7 @@ A checkpoint pairs conversation state with a workspace snapshot at a completed s
 
 ## AgentCore experiment
 
-The implemented probe uses a minimal private ECR image, scoped IAM roles, short-lived logs, and the AWS SDK for Go v2 command stream. Its Go controller runs on GitHub Actions through OIDC. Known fixture files are transferred in bounded command payloads; S3 artifact transfer is still planned. The checked-in infrastructure and workflow implement runtime/image/log teardown. The following steps describe the broader backend acceptance work.
+The implemented probe uses a minimal private ECR image, scoped IAM roles, short-lived logs, and the AWS SDK for Go v2 command stream. Its Go controller runs on GitHub Actions through OIDC. Known fixture files are transferred in bounded command payloads; S3 artifact transfer is still planned. The checked-in infrastructure and workflow implement runtime/image/log teardown. The client now mandates a seccomp allowlist for every command. The verifier denies filesystem writes globally in a fresh session, and actual command journals export natively to AgentTrace. The following steps describe the broader backend acceptance work.
 
 1. Build an ARM64 environment with language tools and a small runtime endpoint. Meet the [HTTP contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html), including `/invocations` and `/ping`. Establish the session through invocation, then use the command API for execution.
 2. Transfer a pinned repository snapshot. Map a unique provider session ID to our run/attempt. Give the guest no OpenAI or GitHub credential. Treat any runtime execution-role permissions as accessible to agent code; restrict artifact access to required resources.
