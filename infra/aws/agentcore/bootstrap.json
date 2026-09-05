@@ -194,12 +194,30 @@
                   }
                 },
                 {
+                  "Sid": "CreateTaggedDefaultEndpoint",
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock-agentcore:CreateAgentRuntimeEndpoint"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestedRegion": {
+                        "Ref": "AWS::Region"
+                      },
+                      "aws:RequestTag/Project": "agent-harness",
+                      "aws:RequestTag/Purpose": "bounded-probe"
+                    }
+                  }
+                },
+                {
                   "Sid": "ProbeRuntime",
                   "Effect": "Allow",
                   "Action": [
                     "bedrock-agentcore:GetAgentRuntime",
                     "bedrock-agentcore:DeleteAgentRuntime",
-                    "bedrock-agentcore:CreateAgentRuntimeEndpoint",
                     "bedrock-agentcore:DeleteAgentRuntimeEndpoint",
                     "bedrock-agentcore:InvokeAgentRuntime",
                     "bedrock-agentcore:InvokeAgentRuntimeCommand",
