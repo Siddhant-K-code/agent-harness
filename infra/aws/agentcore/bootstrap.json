@@ -290,9 +290,14 @@
                   "Action": [
                     "bedrock-agentcore:DeleteWorkloadIdentity"
                   ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/agent_harness_probe_*"
-                  }
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/agent_harness_probe_*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default"
+                    }
+                  ]
                 },
                 {
                   "Sid": "FindAmbiguousCreate",
