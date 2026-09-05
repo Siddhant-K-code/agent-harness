@@ -253,10 +253,14 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 	if err = expect("fresh_session_verification", verifySession, "set -eu; test ! -e /workspace/session-marker\n"+install+"/bin/bash -c "+quote(string(verifier)), 20, 0, "COMPLETED"); err != nil {
 		return err
 	}
-	if err = expect("nonzero_exit_and_stderr", session, "echo deliberate-error >&2; exit 7", 10, 7, "COMPLETED"); err != nil {
+	result, err := command("nonzero_exit_and_stderr", session, "echo deliberate-error >&2; exit 7", 10)
+	if err != nil {
 		return err
 	}
-	result, err := command("bounded_output", session, "python3 -c 'print(\"x\"*70000)'", 20)
+	if result.ExitCode == nil || *result.ExitCode != 7 || result.Status != "COMPLETED" || result.Stderr != "deliberate-error\n" {
+		return errors.New("nonzero exit or stderr was not preserved")
+	}
+	result, err = command("bounded_output", session, "python3 -c 'print(\"x\"*70000)'", 20)
 	if err != nil {
 		return err
 	}
@@ -282,8 +286,8 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 		check.Error = err.Error()
 	}
 	report.Checks = append(report.Checks, check)
-	if err == nil {
-		return errors.New("disconnect did not interrupt client")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("disconnect must end at the controller deadline, got: %v", err)
 	}
 	if err = client.Stop(ctx, cancelSession); err != nil {
 		return err
