@@ -1,6 +1,6 @@
 # Execution backends and the AWS experiment
 
-Design proposal, September 5, 2026. Region: `us-east-1`. Docker is the only implemented backend. No cloud resources have been provisioned by this design; allocations below are proposed spending limits.
+Design and implementation status, September 5, 2026. Region: `us-east-1`. Docker remains the production executor. The separately implemented AgentCore probe [passed nine real checks and teardown](evidence/2026-09-05/aws-agentcore/README.md). Its scoped bootstrap remains deployed. The first $50 experiment allocation was authorized; the remaining allocations below are proposals.
 
 ## Backend choice
 
@@ -35,7 +35,7 @@ A checkpoint pairs conversation state with a workspace snapshot at a completed s
 
 ## AgentCore experiment
 
-Use a minimal private ECR image, a per-project S3 artifact prefix, scoped IAM roles, and short log retention. Keep the Go controller on the development machine initially. Use infrastructure as code with complete teardown. Prefer AWS SDK for Go v2 after verifying its version supports the command stream; SDK/protocol availability is an explicit experiment result.
+The implemented probe uses a minimal private ECR image, scoped IAM roles, short-lived logs, and the AWS SDK for Go v2 command stream. Its Go controller runs on GitHub Actions through OIDC. Known fixture files are transferred in bounded command payloads; S3 artifact transfer is still planned. The checked-in infrastructure and workflow implement runtime/image/log teardown. The following steps describe the broader backend acceptance work.
 
 1. Build an ARM64 environment with language tools and a small runtime endpoint. Meet the [HTTP contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html), including `/invocations` and `/ping`. Establish the session through invocation, then use the command API for execution.
 2. Transfer a pinned repository snapshot. Map a unique provider session ID to our run/attempt. Give the guest no OpenAI or GitHub credential. Treat any runtime execution-role permissions as accessible to agent code; restrict artifact access to required resources.
@@ -47,7 +47,7 @@ AgentCore's [managed session storage is in preview](https://docs.aws.amazon.com/
 
 Acceptance: the same small task passes locally and remotely with identified environments and real evidence; timeout leaves no continuing execution; controller loss produces validated recovery or an explicit uncertain outcome; teardown removes compute and accounts for retained storage/logs. A required capability failure selects another provider rather than weakening the contract.
 
-## Confirmed credit and proposed allocation
+## Confirmed credit and allocation
 
 The owner-provided AWS Credits screenshot shows **$500 remaining, $0 used, active, expiring October 31, 2027**. Its associated service list explicitly includes Amazon Bedrock AgentCore, ECR, S3, CloudWatch, ECS, EC2, VPC, AWS Budgets, and Bedrock. This resolves the service-eligibility question for the proposed core resources. Credit eligibility does not itself authorize provisioning.
 
@@ -55,7 +55,7 @@ Account-specific source: screenshot and eligible-service list supplied September
 
 | Allocation | Proposed maximum |
 | --- | ---: |
-| Backend experiment and teardown validation | $50 |
+| Backend experiment and teardown validation (authorized) | $50 |
 | Repeated task evaluation and recovery experiments | $150 |
 | Storage, image registry, logs, and networking allowance | $50 |
 | Uncommitted reserve | $250 |
@@ -73,6 +73,6 @@ Fargate uses `$0.000011244/vCPU-second` and `$0.000001235/GB-second` here. [Farg
 
 These are not equal-performance benchmarks or full project budgets. They exclude extra verifier sessions, boot/image-pull time beyond the assumed interval, system usage beyond the assumption, model calls, storage, logs, network services, and data transfer. Record architecture differences and measure actual usage before extrapolating.
 
-Start with one concurrent run and a 30-minute session lifetime ceiling; choose an idle timeout appropriate for model/tool gaps and stop promptly on completion. Add a separate janitor, resource tags, conservative cost reservation, and total experiment admission limit. Use [lifecycle settings](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-lifecycle-settings.html) for provider-supported bounds. Verify storage and networking limits instead of assuming a microVM bounds all spending.
+The validated probe allows one concurrent workflow, up to three explicitly initialized sessions, a ten-minute maximum session lifetime, a one-minute idle expiry, and an eight-minute controller deadline. Longer model-driven runs will need separately chosen idle/lifetime limits and prompt stopping on completion. Add a separate janitor, resource tags, conservative cost reservation, and total experiment admission limit. Use [lifecycle settings](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-lifecycle-settings.html) for provider-supported bounds. Verify storage and networking limits instead of assuming a microVM bounds all spending.
 
 AWS Budgets alerts are secondary: [billing updates can lag by hours](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html), so alerts are not a real-time cap. Avoid an always-on fleet, Kubernetes control plane, or default NAT/ALB footprint. Price required private networking explicitly. Infrastructure configuration, projected charges, and teardown should be reviewable before provisioning.

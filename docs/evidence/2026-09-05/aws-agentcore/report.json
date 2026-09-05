@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "region": "us-east-1",
+  "image": "<AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/agent-harness-probe@sha256:bd6b171da9a8813a97b564973210af59552011fdd1222d9710659a02459476fe",
+  "patch_sha256": "a951c168a8cba6beda5d12864093b4bd836f6307d418f58aeb8aa5d1ed97f35c",
+  "verifier_sha256": "03a0a88e5cc53d6a2cfbc1223e06e0d93d72e1e1305ba87ba423325fc3fa78e7",
+  "new_model_calls": 0,
+  "started": "2026-09-05T14:23:34.492609616Z",
+  "finished": "2026-09-05T14:24:07.51917352Z",
+  "checks": [
+    {
+      "name": "nonroot_and_tools",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "v22.23.2\nPython 3.14.7\ngit version 2.54.0\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "original_bug_rejected",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   ' a ',\n-   'a',\n    'b',\n+   'A',\n+   ''\n  ]\n\n    at [stdin]:13:10\n    at runScriptInThisContext (node:internal/vm:209:10)\n    at node:internal/process/execution:446:12\n    at [stdin]-wrapper:6:24\n    at runScriptInContext (node:internal/process/execution:444:60)\n    at evalFunction (node:internal/process/execution:279:30)\n    at evalTypeScript (node:internal/process/execution:291:3)\n    at node:internal/main/eval_stdin:53:5\n    at Socket.<anonymous> (node:internal/process/execution:201:5)\n    at Socket.emit (node:events:531:35) {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: [ ' a ', 'b', 'A', '' ],\n  expected: [ 'a', 'b' ],\n  operator: 'deepStrictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.2\n",
+        "truncated": false
+      }
+    },
+    {
+      "name": "apply_real_gpt54_patch",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "patching file tags.js\npatching file tags.test.js\ntests passed\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "file_persistence",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "e6708204f8a05b3dea5b36ae528d20b44ae5b1eed46668545bdd7610ea02be96  /workspace/tags.js\ntests passed\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "fresh_session_verification",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stdout": "patching file tags.js\npatching file tags.test.js\nPassed 6 independent cases plus mutation checks.\n",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "nonzero_exit_and_stderr",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 7,
+        "stdout": "",
+        "stderr": "deliberate-error\n",
+        "truncated": false
+      }
+    },
+    {
+      "name": "bounded_output",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "COMPLETED",
+        "exit_code": 0,
+        "stderr": "",
+        "truncated": true,
+        "stdout_publication": {
+          "omitted": true,
+          "retained_bytes": 65536,
+          "sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+          "description": "65536 x characters retained from 70000 x characters plus newline emitted by the command"
+        }
+      }
+    },
+    {
+      "name": "server_timeout",
+      "result": {
+        "started": true,
+        "finished": true,
+        "status": "TIMED_OUT",
+        "exit_code": -1,
+        "stdout": "",
+        "stderr": "",
+        "truncated": false
+      }
+    },
+    {
+      "name": "controller_disconnect",
+      "result": {
+        "started": true,
+        "finished": false,
+        "status": "",
+        "stdout": "",
+        "stderr": "",
+        "truncated": false
+      },
+      "error": "context deadline exceeded"
+    }
+  ],
+  "stop_acknowledged": true,
+  "runtime_deletion_confirmed": true,
+  "probe_passed": true,
+  "limits_and_gaps": {
+    "automatic_model_calls": false,
+    "idle_session_seconds": 60,
+    "max_session_lifetime_seconds": 600,
+    "max_sessions": 3,
+    "network": "PUBLIC",
+    "network_disabled": false,
+    "production_backend_enabled": false,
+    "read_only_verifier_workspace_enforced": false,
+    "session_absence_inspection": false,
+    "workspace_disk_quota_enforced": false
+  },
+  "publication": {
+    "workflow_url": "https://github.com/Siddhant-K-code/agent-harness/actions/runs/33971620876",
+    "git_commit": "65f0ff51c58bb2a348b4e0e58afa1fcec2ae0e4a",
+    "session_count": 3,
+    "changes_from_private_report": [
+      "AWS account ID replaced in image URI",
+      "Repeated bounded-output stdout omitted; original retained byte count and SHA-256 recorded"
+    ]
+  }
+}

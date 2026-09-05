@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "checked_at": "2026-09-05T14:25:44.653152+00:00",
+  "region": "us-east-1",
+  "workflow_run": 33971620876,
+  "exact_runtime_get": "ResourceNotFoundException",
+  "probe_runtimes_remaining": 0,
+  "probe_repository_images_remaining": 0,
+  "probe_log_groups_remaining": 0,
+  "probe_workload_identities_remaining": 0,
+  "source": "Independent AWS CLI read-only queries after workflow completion",
+  "bootstrap_retained": [
+    "GitHub OIDC provider",
+    "AgentCore identity service-linked role",
+    "agent-harness-runtime IAM role",
+    "agent-harness-deploy IAM role",
+    "empty agent-harness-probe ECR repository"
+  ],
+  "billed_cost_usd": null
+}

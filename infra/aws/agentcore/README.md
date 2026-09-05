@@ -4,6 +4,10 @@ This experiment uses the real AWS SDK and an ARM64 container in `us-east-1`. It 
 
 The probe initializes real sessions through `InvokeAgentRuntime`, executes commands through `InvokeAgentRuntimeCommand`, and checks the original bug fails, the saved GPT-5.4 patch applies, files persist, a separate session starts clean, independent assertions pass, exit codes/stderr arrive, output is bounded, and a server timeout is reported. Disconnecting the controller is an uncertain command outcome. `StopRuntimeSession` is reported as an acknowledgement, not proof of an absent microVM. The probe deletes the entire runtime and waits until `GetAgentRuntime` returns `ResourceNotFoundException`.
 
+## Validated run
+
+[Workflow 33971620876](https://github.com/Siddhant-K-code/agent-harness/actions/runs/33971620876) passed all nine checks on September 5, 2026. The [sanitized report and independent cleanup audit](../../../docs/evidence/2026-09-05/aws-agentcore/README.md) confirm real command execution and whole-runtime deletion, with no probe images, logs, or workload identities remaining. No new model calls were made. The account's scoped bootstrap and both repository variables are configured; AWS billed cost remains unmeasured.
+
 ## Bootstrap once
 
 Use a locally authenticated account administrator for the bootstrap only. The probe refuses root and IAM-user credentials and requires the dedicated assumed role. Never paste keys into the repository or GitHub secrets.
