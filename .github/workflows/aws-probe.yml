@@ -23,6 +23,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Check repository variables
+        env:
+          DEPLOY_ROLE: ${{ vars.AGENT_HARNESS_AWS_ROLE_ARN }}
+          RUNTIME_ROLE: ${{ vars.AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN }}
+        run: |
+          test -n "$DEPLOY_ROLE" || { echo '::error::Set repository variable AGENT_HARNESS_AWS_ROLE_ARN from the bootstrap DeploymentRoleArn output.'; exit 1; }
+          test -n "$RUNTIME_ROLE" || { echo '::error::Set repository variable AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN from the bootstrap RuntimeRoleArn output.'; exit 1; }
       - name: Build and check protocol
         run: |
           go test ./internal/sandbox/agentcore
