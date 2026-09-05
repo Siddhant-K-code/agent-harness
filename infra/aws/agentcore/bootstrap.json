@@ -220,6 +220,31 @@
                   }
                 },
                 {
+                  "Sid": "TagCreatedWorkloadIdentity",
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock-agentcore:TagResource"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestedRegion": {
+                        "Ref": "AWS::Region"
+                      },
+                      "aws:RequestTag/Project": "agent-harness",
+                      "aws:RequestTag/Purpose": "bounded-probe"
+                    },
+                    "ForAllValues:StringEquals": {
+                      "aws:TagKeys": [
+                        "Project",
+                        "Purpose"
+                      ]
+                    }
+                  }
+                },
+                {
                   "Sid": "ProbeRuntime",
                   "Effect": "Allow",
                   "Action": [
