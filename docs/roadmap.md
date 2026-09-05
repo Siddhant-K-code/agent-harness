@@ -20,9 +20,9 @@ Docker now implements an executor lifecycle/capability interface. New runs hold 
 
 Acceptance: kill workers before dispatch, during commands, after effects but before acknowledgement, during verification, and during snapshot publication. Reconcile without silently repeating uncertain external effects or granting two workers execution ownership.
 
-## 3. AWS AgentCore Runtime experiment in us-east-1
+## 3. AWS AgentCore Runtime experiment in us-east-1 — probe implemented; cloud validation pending
 
-Add `internal/sandbox/agentcore`, a prepared ARM64 environment, scoped IAM, artifact storage, and reproducible infrastructure/teardown. Test real execution, effective limits, cancellation, isolated verification, and recovery. Use the [proposed $50 experiment allocation](execution-backends.md); an operator must explicitly authorize provisioning and spend before running the deployment workflow.
+`internal/sandbox/agentcore` now implements the AWS command stream, and `cmd/agentcore-probe` runs deterministic capability checks using the actual GPT-5.4 patch. The prepared ARM64 image, scoped IAM/OIDC bootstrap, manual GitHub workflow, private evidence artifacts, and teardown are in [infra/aws/agentcore](../infra/aws/agentcore/README.md). The local image and client tests pass; a live AWS run is pending explicit bootstrap approval. Production model execution remains on Docker until remote guarantees pass acceptance. Use the [proposed $50 experiment allocation](execution-backends.md); an operator must explicitly authorize provisioning and spend before running the deployment workflow.
 
 Acceptance: a real task produces a verified patch and AgentTrace evidence remotely; interrupted runs and cleanup are accounted for. If required capabilities cannot be enforced, evaluate Fargate rather than reducing guarantees silently.
 
@@ -48,4 +48,4 @@ Acceptance: compare harness revisions on identical task/evaluator identities and
 
 ## Tools by milestone
 
-Current: Go, OpenAI Go SDK / Responses, Git, Docker/Colima, SQLite, Go tests, GitHub Actions. Next: pinned AgentTrace Python package for export. Remote experiment: AWS SDK for Go v2, AgentCore Runtime, ECR, S3, IAM, short-lived logs, infrastructure as code. Later: Distill Go packages, OpenFGA SDK, selective MCP connectors, ContextLab and LLMTraceFX adapters. E2B, Modal, and self-managed Firecracker remain options when experiments need them.
+Current: Go, OpenAI Go SDK / Responses, Git, Docker/Colima, SQLite, Go tests, GitHub Actions. Native export: pinned AgentTrace Python package. Remote experiment: AWS SDK for Go v2, AgentCore Runtime, ECR, S3, IAM, short-lived logs, infrastructure as code. Later: Distill Go packages, OpenFGA SDK, selective MCP connectors, ContextLab and LLMTraceFX adapters. E2B, Modal, and self-managed Firecracker remain options when experiments need them.

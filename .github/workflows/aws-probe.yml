@@ -1,0 +1,79 @@
+name: AWS AgentCore probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: agent-harness-aws-probe
+  cancel-in-progress: false
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      AWS_RETRY_MODE: standard
+      AWS_MAX_ATTEMPTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build and check protocol
+        run: |
+          go test ./internal/sandbox/agentcore
+          go build -o bin/agentcore-probe ./cmd/agentcore-probe
+      - name: Obtain short-lived scoped credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AGENT_HARNESS_AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-duration-seconds: 1800
+          role-session-name: harness-probe-${{ github.run_id }}
+          mask-aws-account-id: true
+      - name: Authenticate ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push ARM64 image
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          PROBE_TAG: probe-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/agent-harness-probe:$PROBE_TAG"
+          docker buildx build --platform linux/arm64 --provenance=false --load --pull -t "$image" infra/aws/agentcore
+          docker push "$image"
+          digest=$(aws ecr describe-images --repository-name agent-harness-probe --image-ids "imageTag=$PROBE_TAG" --query 'imageDetails[0].imageDigest' --output text)
+          echo "uri=$REGISTRY/agent-harness-probe@$digest" >> "$GITHUB_OUTPUT"
+          echo "tag=$PROBE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Run real capability checks
+        env:
+          PROBE_IMAGE: ${{ steps.image.outputs.uri }}
+          EXECUTION_ROLE: ${{ vars.AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN }}
+        run: bin/agentcore-probe --image "$PROBE_IMAGE" --execution-role "$EXECUTION_ROLE" > .harness-probe-report.json
+      - name: Reconcile runtime cleanup
+        if: always()
+        run: |
+          if [ -f .harness/aws-probe.json ]; then
+            bin/agentcore-probe --cleanup
+          fi
+      - name: Expire owned logs and remove probe image
+        if: always() && steps.ecr.outcome == 'success'
+        env:
+          PROBE_TAG: ${{ steps.image.outputs.tag }}
+        run: python3 infra/aws/agentcore/cleanup.py
+      - name: Save private evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentcore-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          retention-days: 7
+          path: |
+            .harness/aws-probe*.json
+            .harness-probe-report.json

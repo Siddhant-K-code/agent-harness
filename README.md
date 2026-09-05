@@ -65,3 +65,5 @@ go vet ./...
 The integration test launches real containers and checks writes, read-only verification, credential exclusion, disabled networking, and timeout cleanup. HTTP stubs are limited to SDK protocol tests. See [architecture](docs/architecture.md) and [implementation roadmap](docs/roadmap.md).
 
 The [integration design](docs/native-integrations.md) connects the projects through native hooks and versioned evidence. AgentTrace batch export is implemented; Distill and the other adapters remain planned. The [remote execution plan](docs/execution-backends.md) evaluates AWS AgentCore Runtime in `us-east-1`, with Fargate and other providers behind an explicit backend contract.
+
+The [AWS AgentCore capability probe](infra/aws/agentcore/README.md) is implemented separately from the model runner. It uses real SDK calls and the existing GPT-5.4 patch, with a prepared ARM64 image and a scoped GitHub OIDC workflow. Cloud validation is pending bootstrap approval; the probe currently declares its network, verifier-mount, and session-inspection gaps explicitly.
