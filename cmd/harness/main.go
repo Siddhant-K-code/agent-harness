@@ -17,6 +17,7 @@ import (
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
+	"github.com/Siddhant-K-code/agent-harness/internal/trace/agenttrace"
 )
 
 func main() {
@@ -27,12 +28,15 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: harness <run|doctor|list|status|cancel|events> [flags]")
+		return errors.New("usage: harness <run|doctor|list|status|cancel|events|trace> [flags]")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	rootFlag := f.String("state-dir", ".harness", "local state and artifact directory")
 	keyFile := f.String("api-key-file", "", "key file (default: <state-dir>/openai-key)")
 	taskFile := f.String("task", "", "task JSON file")
+	traceOutput := f.String("output", "", "AgentTrace root (default: <state-dir>/traces)")
+	tracePython := f.String("python", "", "Python with pinned AgentTrace (default: <state-dir>/agenttrace-venv/bin/python)")
+	traceContent := f.Bool("include-content", false, "export selected command/output content with AgentTrace redaction")
 	if err := f.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -44,7 +48,7 @@ func run(args []string) error {
 	defer cancel()
 	encode := func(v any) error { e := json.NewEncoder(os.Stdout); e.SetIndent("", "  "); return e.Encode(v) }
 	switch args[0] {
-	case "run", "doctor", "list", "status", "cancel", "events":
+	case "run", "doctor", "list", "status", "cancel", "events", "trace":
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -103,6 +107,35 @@ func run(args []string) error {
 	}
 	defer db.Close()
 	switch args[0] {
+	case "trace":
+		v, e := db.Get(ctx, f.Arg(0))
+		if e != nil {
+			return e
+		}
+		events, e := db.Events(ctx, v.ID)
+		if e != nil {
+			return e
+		}
+		projection, e := agenttrace.Build(v, events, *traceContent)
+		if e != nil {
+			return e
+		}
+		if e = projection.AttachOutcome(filepath.Join(root, "runs", v.ID, "report.json")); e != nil {
+			return e
+		}
+		if *traceOutput == "" {
+			*traceOutput = filepath.Join(root, "traces")
+		}
+		if *tracePython == "" {
+			*tracePython = filepath.Join(root, "agenttrace-venv", "bin", "python")
+		}
+		exportCtx, stop := context.WithTimeout(ctx, 2*time.Minute)
+		defer stop()
+		result, e := agenttrace.Export(exportCtx, *tracePython, *traceOutput, projection)
+		if e != nil {
+			return e
+		}
+		return encode(result)
 	case "list":
 		v, e := db.List(ctx)
 		if e != nil {

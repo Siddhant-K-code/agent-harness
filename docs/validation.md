@@ -26,4 +26,12 @@ The [report](evidence/2026-09-05/report.json) retains the actual commit, image, 
 
 The Docker integration suite also runs the example verifier against the unfixed source and requires it to fail. SDK protocol tests use a local HTTP server; production never selects that implementation. No paid API calls run in CI.
 
-Crash reconciliation and resume have not been tested because they are not yet implemented. Failure-repair quality, broader repository performance, cost comparisons, and trace export need their own acceptance evidence.
+Crash reconciliation and resume have not been tested because they are not yet implemented. Failure-repair quality, broader repository performance, and cost comparisons need their own acceptance evidence.
+
+## Native AgentTrace export — September 5, 2026
+
+The same live run was exported through AgentTrace 0.94.1 at pinned commit `b109ec5b3714b842746e97ee8e975329d8582667`, then loaded by its real `TraceStore` and HTML replay renderer. The projection has 13 native events from 16 source events, with the remaining lifecycle/verification information in the [harness sidecar](evidence/2026-09-05/agenttrace/harness.json). The [manifest](evidence/2026-09-05/agenttrace/manifest.json) authenticates the exported file bytes against recorded checksums; it is not a signature or proof of complete capture.
+
+The reader reported 2,438 total tokens, matching the original 1,901 input and 537 output tokens. The report estimate remains $0.0128075, and verification passed once. Repeating the export returned `reused: true`. No new model or cloud calls were made.
+
+The full race suite and vet passed with real AgentTrace integration enabled. Native tests cover concurrent duplicate publication, secret canaries, parent links, missing usage, corrupted exports, symlink destinations, and a child writer terminated with exit code 91 immediately before the final rename. The interrupted export did not appear as a session and a retry succeeded. A successful finish without a separate tool-result event is explicitly recorded as such.

@@ -12,8 +12,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sh integrations/agenttrace/setup.sh
       - run: docker pull node:22-alpine
-      - run: go test -race ./...
+      - run: HARNESS_AGENTTRACE_PYTHON="$PWD/.harness/agenttrace-venv/bin/python" go test -race ./...
         env:
           HARNESS_DOCKER_TEST: '1'
       - run: go vet ./...

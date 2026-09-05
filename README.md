@@ -49,7 +49,9 @@ Before every generation request, the controller calls OpenAI's input-token count
 
 Containers run without networking, capabilities, a Docker socket, host credentials, or the host home directory. Root filesystems are read-only; CPU, memory, PID count, runtime, and captured output are bounded. Only the disposable workspace is bind-mounted. Commands run as a non-root UID. Docker isolation shares a kernel and is not a multi-tenant security boundary. Workspace disk quotas, remote sandboxes, and stronger isolation are future work.
 
-Durable events are implemented. Crash recovery, checkpoint resume, an outbox delivery worker, AgentTrace export, and a visual trace viewer are **not implemented yet**. A killed controller can leave a stale running record or a container; inspect and clean these manually. A verifier passing means its checks passed; it is not a proof that arbitrary generated code is correct or resistant to evaluator tampering.
+Durable events and [native AgentTrace export](integrations/agenttrace/README.md) are implemented. Export a terminal run with `bin/harness trace RUN_ID` after running `sh integrations/agenttrace/setup.sh`. Export defaults to metadata, records capture gaps, and uses AgentTrace's native store and replay tools. The [real-run trace evidence](docs/evidence/2026-09-05/agenttrace/manifest.json) was loaded by the pinned AgentTrace reader.
+
+Crash recovery, checkpoint resume, and an incremental outbox delivery worker are **not implemented yet**. A killed controller can leave a stale running record or a container; inspect and clean these manually. A verifier passing means its checks passed; it is not a proof that arbitrary generated code is correct or resistant to evaluator tampering.
 
 ## Development
 
@@ -61,4 +63,4 @@ go vet ./...
 
 The integration test launches real containers and checks writes, read-only verification, credential exclusion, disabled networking, and timeout cleanup. HTTP stubs are limited to SDK protocol tests. See [architecture](docs/architecture.md) and [implementation roadmap](docs/roadmap.md).
 
-The next design connects [AgentTrace, Distill, and the other projects](docs/native-integrations.md) through native runtime hooks and versioned evidence. The [remote execution plan](docs/execution-backends.md) evaluates AWS AgentCore Runtime in `us-east-1`, with Fargate and other providers behind an explicit backend contract. These integrations are proposed, not implemented.
+The [integration design](docs/native-integrations.md) connects the projects through native hooks and versioned evidence. AgentTrace batch export is implemented; Distill and the other adapters remain planned. The [remote execution plan](docs/execution-backends.md) evaluates AWS AgentCore Runtime in `us-east-1`, with Fargate and other providers behind an explicit backend contract.

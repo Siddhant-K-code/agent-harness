@@ -1,14 +1,14 @@
 # Implementation roadmap
 
-Build a measurable coding runtime: use real evidence to locate failures, change one part of the harness, and evaluate verified outcomes. Detailed proposals: [native integrations](native-integrations.md) and [execution backends / AWS](execution-backends.md). Everything below the baseline is planned work.
+Build a measurable coding runtime: use real evidence to locate failures, change one part of the harness, and evaluate verified outcomes. Detailed proposals: [native integrations](native-integrations.md) and [execution backends / AWS](execution-backends.md). Status is recorded per milestone.
 
 ## Baseline — implemented
 
 Go CLI, real OpenAI Responses loop, token counting and budget admission, Docker execution, pinned repository/image identity, independent verifier with bounded repair, SQLite events/outbox, cancellation, patch, and report. The [first live GPT-5.4 run](validation.md) passed on September 5, 2026. One successful task is not a benchmark.
 
-## 1. Native AgentTrace export and a small corpus — next
+## 1. Native AgentTrace export — implemented; corpus expansion — pending
 
-Add `internal/trace/agenttrace`, a pinned Python bridge, and a CLI export command for terminal runs. Use AgentTrace's real models/store, stable IDs, linked calls, coverage, redaction, and atomic publication. Reuse its replay/comparison interface. Export the existing run before spending on new model calls.
+`internal/trace/agenttrace` and `harness trace` export terminal runs through the pinned native Python API. Stable IDs, linked calls, coverage, redaction, checksums, and atomic publication are tested against AgentTrace's reader and renderer. The existing GPT-5.4 run exported successfully without new model calls; see [evidence](validation.md).
 
 Prepare five real task cases with pinned commits and controller-owned verifiers: ordinary bug, small feature, plausible wrong fix, dependency failure, and cancellation/recovery. Separate deterministic infrastructure checks from paid evaluation.
 

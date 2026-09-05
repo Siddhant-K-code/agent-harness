@@ -38,6 +38,6 @@ The final patch includes tracked changes, deletions, new files, binary changes, 
 
 ## Current limits
 
-This is a local single-worker runtime. It lacks leases, crash recovery, disk quotas, artifact redaction, model compaction, remote execution, and production-grade adversarial verification. SQLite outbox rows are durable but are not yet delivered anywhere. No AgentTrace integration is claimed until an adapter is implemented and tested against that project's supported event schema.
+This is a local single-worker runtime. It lacks leases, crash recovery, disk quotas, model compaction, remote execution, and production-grade adversarial verification. SQLite outbox rows are durable but are not yet delivered incrementally. Terminal runs can be [exported into AgentTrace](../integrations/agenttrace/README.md) using a pinned native Python bridge. Export allowlists metadata, optionally redacts selected content, preserves coverage gaps, and atomically publishes a checksummed session. The private recovery journal is unchanged; raw artifacts are not automatically safe to share.
 
 API references: [Responses](https://developers.openai.com/api/docs/guides/migrate-to-responses), [function calling](https://developers.openai.com/api/docs/guides/function-calling), [Docker execution](https://docs.docker.com/engine/containers/run/).
