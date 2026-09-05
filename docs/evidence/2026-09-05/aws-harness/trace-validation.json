@@ -1,0 +1,8 @@
+{
+  "session_id": "09eb2a47130c3d81d227208453965829",
+  "native_events": 17,
+  "llm_requests": 4,
+  "tool_calls": 4,
+  "total_tokens": 3079,
+  "duplicate_export_reused": true
+}

@@ -1,0 +1,15 @@
+{
+  "candidate_transfer": true,
+  "cleanup_confirmed": true,
+  "network_denial": true,
+  "new_model_calls": 0,
+  "passed": true,
+  "readonly_verifier": true,
+  "real_model_patch": true,
+  "verification": {
+    "output": "{\"mutation_attempts_denied\": 14, \"scratch_writable\": false, \"candidate_bytes_and_mode_unchanged\": true}\nPassed 6 independent cases plus mutation checks.\n",
+    "stderr": "",
+    "exit_code": 0,
+    "truncated": false
+  }
+}

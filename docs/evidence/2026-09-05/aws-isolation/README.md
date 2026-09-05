@@ -22,3 +22,5 @@ The [first isolation attempt](landlock-refusal.json) refused the payload because
 The controller ran from 15:19:56 to 15:25:25 UTC, including asynchronous runtime deletion. Elapsed time is not CPU/memory usage or a billing measurement; AWS billed cost remains unknown. The scoped IAM/OIDC bootstrap and empty ECR repository remain for reuse.
 
 The trusted HTTP service retains platform networking; the restrictions apply to command processes and descendants. These checks do not prove arbitrary workload compatibility, immunity to evaluator monkeypatching, complete remote recovery, or individual session absence. Durable artifact handoff, controller ownership/reconciliation, and disk quotas remain pending, so the production model runner stays on Docker.
+
+Subsequent milestone: [full AWS harness validation](../aws-harness/README.md) adds artifact handoff, interrupted-worker cleanup and a new live GPT-5.4 run. The limits above describe this earlier isolation probe.

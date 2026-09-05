@@ -1,0 +1,29 @@
+{
+  "active_owner_rejected": true,
+  "cleanup_confirmed": true,
+  "command_replayed": false,
+  "lost_create_ack_recovered": true,
+  "passed": true,
+  "report": {
+    "backend": "agentcore",
+    "aws_billing_usd": null,
+    "run_id": "41637f034c4a9d67495446e79f01818e",
+    "state": "failed",
+    "reason": "controller interrupted; recorded executions stopped; effects and billing require inspection",
+    "model": "gpt-5.4",
+    "base_commit": "86cd799c0f7eb1c681aa8f17a6095749c54b2f11",
+    "image_id": "ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/agent-harness-probe@sha256:8fb8e102ec90d7ae0ad7c6f68692579a46a3eb9a9a24c291852a506dbe760c4e",
+    "verifier_sha256": "",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "estimated_usd_uncached": 0,
+    "billing_unknown": false,
+    "verified": false,
+    "verification_attempts": 0,
+    "reconciled": true,
+    "cleanup_confirmed": true
+  },
+  "runtime_identity_preserved": true,
+  "unobserved_candidate_accepted": false,
+  "worker_killed": true
+}

@@ -5,7 +5,11 @@ flowchart LR
     CLI[Task JSON + CLI] --> Controller[Go controller]
     Controller --> API[OpenAI Responses API]
     API --> Controller
-    Controller --> Docker[Fresh Docker container per tool call]
+    Controller --> Executor{Selected executor}
+    Executor --> Docker[Fresh Docker container]
+    Executor --> AWS[Disposable AWS runtime]
+    AWS --> Archive[Checksummed workspace artifact]
+    Archive --> Files
     Docker --> Files[Disposable committed workspace]
     Controller --> Verifier[Separate verifier container]
     Files --> Verifier
@@ -21,6 +25,8 @@ The controller owns credentials, budget admission, lifecycle transitions, Git hi
 `internal/task` validates a versioned JSON contract with explicit limits. `internal/workspace` clones a resolved commit and moves its Git metadata outside the container mount. `internal/model` implements stateless Responses conversations, preserving complete output items and encrypted reasoning continuation. It disables automatic retries because an ambiguous API failure may already have incurred charges.
 
 `internal/sandbox` invokes the Docker CLI without a host shell. The model's shell script is passed only to `/bin/sh` inside the restricted container. Every command has a new container and temporary directory; only repository files persist. The controller resolves the image tag once and executes its content ID throughout the run.
+
+`internal/sandbox/agentcore.Executor` creates a dedicated microVM runtime per command, transfers bounded checksummed snapshots through the trusted artifact service, and deletes the runtime before publishing the resulting candidate locally. Its durable create token resolves ambiguous creation without replaying commands. A fresh verifier runtime receives the accepted artifact and denies all filesystem writes. See [AWS lifecycle and limits](aws-harness.md).
 
 `internal/runner` checks input tokens and reserves maximum output cost before generation. It serializes tool calls, logs requests before executing them, and returns real output and exit codes. Captured stdout and stderr are each limited to 64 KiB and drained after truncation. The verifier is executed from the controller's snapshot; its content hash identifies the exact check that ran. Failure feedback is passed to the model until the repair or step budget is exhausted.
 
@@ -38,6 +44,6 @@ The final patch includes tracked changes, deletions, new files, binary changes, 
 
 ## Current limits
 
-This is a local single-worker runtime. It has local process ownership, renewable leases, durable execution references, paired checkpoints, and explicit crash reconciliation. It lacks automatic resume, distributed worker takeover, disk quotas, model compaction, remote production execution, and production-grade adversarial verification. See [recovery](recovery.md). SQLite outbox rows are durable but are not yet delivered incrementally. Terminal runs can be [exported into AgentTrace](../integrations/agenttrace/README.md) using a pinned native Python bridge. Export allowlists metadata, optionally redacts selected content, preserves coverage gaps, and atomically publishes a checksummed session. The private recovery journal is unchanged; raw artifacts are not automatically safe to share.
+This is a local single-worker runtime. It has local process ownership, renewable leases, durable execution references, paired checkpoints, and explicit crash reconciliation. It lacks automatic resume, distributed worker takeover, disk quotas, model compaction, and production-grade adversarial verification. See [recovery](recovery.md). SQLite outbox rows are durable but are not yet delivered incrementally. Terminal runs can be [exported into AgentTrace](../integrations/agenttrace/README.md) using a pinned native Python bridge. Export allowlists metadata, optionally redacts selected content, preserves coverage gaps, and atomically publishes a checksummed session. The private recovery journal is unchanged; raw artifacts are not automatically safe to share.
 
 API references: [Responses](https://developers.openai.com/api/docs/guides/migrate-to-responses), [function calling](https://developers.openai.com/api/docs/guides/function-calling), [Docker execution](https://docs.docker.com/engine/containers/run/).

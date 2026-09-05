@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-09-05T15:59:11.582912+00:00",
+  "source": "independent local AWS CLI read-only queries after workflow completion",
+  "region": "us-east-1",
+  "experiment_runtimes_remaining": 0,
+  "experiment_images_remaining": 0,
+  "experiment_log_groups_remaining": 0,
+  "experiment_workload_identities_remaining": 0,
+  "bootstrap_retained": true,
+  "aws_billed_usd": null
+}

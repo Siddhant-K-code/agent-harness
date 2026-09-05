@@ -16,7 +16,7 @@ Acceptance: AgentTrace's reader accepts our evidence; duplicate export and inter
 
 ## 2. Durable attempts and an execution backend contract — local reconciliation implemented
 
-Docker now implements an executor lifecycle/capability interface. New runs hold a local OS lock, renew a lease, reject stale writers, journal execution references before dispatch, and save paired private conversation/workspace checkpoints. `harness reconcile` stops orphaned executions and preserves partial work without replay. See [recovery](recovery.md). Distributed takeover, automatic resume, provider-neutral artifact transfer, and the complete fault-injection matrix remain pending.
+Docker now implements an executor lifecycle/capability interface. New runs hold a local OS lock, renew a lease, reject stale writers, journal execution references before dispatch, and save paired private conversation/workspace checkpoints. `harness reconcile` stops orphaned executions and preserves partial work without replay. See [recovery](recovery.md). The AWS adapter adds bounded artifact transfer and interrupted-worker cleanup. Distributed takeover, automatic resume, and the complete fault-injection matrix remain pending.
 
 Acceptance: kill workers before dispatch, during commands, after effects but before acknowledgement, during verification, and during snapshot publication. Reconcile without silently repeating uncertain external effects or granting two workers execution ownership.
 
@@ -24,7 +24,7 @@ Acceptance: kill workers before dispatch, during commands, after effects but bef
 
 `internal/sandbox/agentcore` implements the AWS command stream, and `cmd/agentcore-probe` passed twelve real cloud checks using the actual GPT-5.4 patch. The ARM64 image, scoped IAM/OIDC bootstrap, manual GitHub workflow, private evidence artifacts, and teardown are in [infra/aws/agentcore](../infra/aws/agentcore/README.md). [Evidence](evidence/2026-09-05/aws-isolation/README.md) confirms command network denial, read-only verification, native AgentTrace export, bounded output, timeout, disconnect, and whole-runtime deletion, with zero new model calls. The first experiment was authorized within the $50 allocation; billed cost remains unmeasured.
 
-Next: test durable artifact transfer, controller ownership, and interrupted-worker reconciliation. The remote client already mandates the network-denying and read-only verifier profiles; native trace export preserves incomplete commands. Production model execution remains on Docker until those guarantees pass acceptance.
+The [full AWS adapter](aws-harness.md) now implements durable artifact transfer, controller ownership and interrupted-worker reconciliation. Its [real transfer/crash acceptance and GPT-5.4 run passed](evidence/2026-09-05/aws-harness/README.md), with native tracing and all seven runtimes confirmed absent. The remote client mandates the network-denying and read-only verifier profiles; native trace export preserves incomplete commands. Docker remains the default.
 
 Acceptance: a real task produces a verified patch and AgentTrace evidence remotely; interrupted runs and cleanup are accounted for. If required capabilities cannot be enforced, evaluate Fargate rather than reducing guarantees silently.
 
@@ -50,4 +50,4 @@ Acceptance: compare harness revisions on identical task/evaluator identities and
 
 ## Tools by milestone
 
-Current: Go, OpenAI Go SDK / Responses, Git, Docker/Colima, SQLite, Go tests, GitHub Actions. Native export: pinned AgentTrace Python package. Remote experiment: AWS SDK for Go v2, AgentCore Runtime, ECR, IAM, short-lived logs, infrastructure as code; S3 artifact transfer remains planned. Later: Distill Go packages, OpenFGA SDK, selective MCP connectors, ContextLab and LLMTraceFX adapters. E2B, Modal, and self-managed Firecracker remain options when experiments need them.
+Current: Go, OpenAI Go SDK / Responses, Git, Docker/Colima, SQLite, Go tests, GitHub Actions. Native export: pinned AgentTrace Python package. Remote experiment: AWS SDK for Go v2, AgentCore Runtime, ECR, IAM, short-lived logs, infrastructure as code; bounded artifact transfer uses authenticated invocations; S3 remains optional future storage. Later: Distill Go packages, OpenFGA SDK, selective MCP connectors, ContextLab and LLMTraceFX adapters. E2B, Modal, and self-managed Firecracker remain options when experiments need them.

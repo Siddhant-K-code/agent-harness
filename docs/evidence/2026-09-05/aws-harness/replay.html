@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>agent-strace: 09eb2a47130c3d81</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --dim: #8b949e; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff; --cyan: #39d353;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 14px; font-weight: 600; }
+  .meta { color: var(--dim); font-size: 12px; }
+  .cost-counter { margin-left: auto; color: var(--green); font-weight: 600; }
+  .controls { display: flex; gap: 8px; }
+  button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  button:hover { background: var(--border); }
+  #timeline { padding: 16px 20px; max-width: 1100px; margin: 0 auto; }
+  .event { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; opacity: 0; transform: translateY(4px); transition: opacity 0.2s, transform 0.2s; }
+  .event.visible { opacity: 1; transform: none; }
+  .event-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; user-select: none; }
+  .event-header:hover { background: rgba(255,255,255,0.03); }
+  .ts { color: var(--dim); font-size: 11px; min-width: 70px; }
+  .icon { font-size: 14px; min-width: 20px; text-align: center; }
+  .type { font-weight: 600; font-size: 12px; min-width: 130px; }
+  .summary { color: var(--dim); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dur { color: var(--dim); font-size: 11px; margin-left: auto; }
+  .event-body { display: none; padding: 10px 12px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+  .event-body.open { display: block; }
+  pre { white-space: pre-wrap; word-break: break-all; font-size: 12px; color: var(--dim); max-height: 300px; overflow-y: auto; }
+  .type-tool_call { border-left: 3px solid var(--cyan); }
+  .type-tool_result { border-left: 3px solid var(--blue); }
+  .type-llm_request { border-left: 3px solid var(--purple); }
+  .type-llm_response { border-left: 3px solid var(--purple); }
+  .type-session_start, .type-session_end { border-left: 3px solid var(--green); }
+  .type-error { border-left: 3px solid var(--red); }
+  .type-user_prompt { border-left: 3px solid var(--green); }
+  .type-assistant_response { border-left: 3px solid var(--purple); }
+  .type-file_read, .type-file_write { border-left: 3px solid var(--yellow); }
+  #scrubber { width: 100%; margin: 8px 0; accent-color: var(--blue); }
+  .paused { opacity: 0.5; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>agent-strace replay</h1>
+    <div class="meta">09eb2a47130c3d81 &nbsp;·&nbsp; 17 events &nbsp;·&nbsp; 1m 23s</div>
+  </div>
+  <div class="controls">
+    <button id="btn-play" onclick="togglePlay()">⏸ Pause</button>
+    <button onclick="showAll()">Show all</button>
+  </div>
+  <div class="cost-counter">$<span id="cost">0.0000</span></div>
+</header>
+<div id="timeline">
+  <input type="range" id="scrubber" min="0" max="16" value="0" oninput="scrubTo(this.value)">
+</div>
+<script>
+const EVENTS = [{"event_type":"session_start","event_id":"82045f25acc4587f7586e307ede4b93e","_offset":0.0,"duration_ms":null,"data":{"agent_name":"agent-harness","harness":{"run_id":"09eb2a47130c3d81d227208453965829","sequence":2,"source_type":"run.started"}}},{"event_type":"llm_request","event_id":"fb3c8963b152c5dccf22bb68604b7102","_offset":0.89,"duration_ms":null,"data":{"harness":{"admission":{"input_tokens":363,"max_output_tokens":2048,"reserved_usd":0.0316275},"run_id":"09eb2a47130c3d81d227208453965829","sequence":6,"source_type":"model.requested"},"model":"gpt-5.4"}},{"event_type":"llm_response","event_id":"6f6884b05d95cfa0c8b40339050e9510","_offset":2.318,"duration_ms":1427.4332523345947,"data":{"harness":{"provider":{"id":"resp_[REDACTED:hex-token]","status":"completed"},"run_id":"09eb2a47130c3d81d227208453965829","sequence":7,"source_type":"model.responded"},"input_tokens":363,"model":"gpt-5.4","output_tokens":58,"total_tokens":421}},{"event_type":"tool_call","event_id":"6f2b240db4fab6166fe6e67ed02b5808","_offset":2.319,"duration_ms":null,"data":{"harness":{"arguments":"omitted","call_id":"call_Y4hIjYNNAHGhhdx6YZHQ0Chi","run_id":"09eb2a47130c3d81d227208453965829","sequence":8,"source_type":"tool.requested"},"tool_name":"exec"}},{"event_type":"tool_result","event_id":"81fe882894b880483ede9b8555f09901","_offset":21.376,"duration_ms":19056.381940841675,"data":{"harness":{"call_id":"call_Y4hIjYNNAHGhhdx6YZHQ0Chi","run_id":"09eb2a47130c3d81d227208453965829","sequence":13,"source_type":"tool.finished"},"result":{"exit_code":0,"truncated":false},"tool_name":"exec"}},{"event_type":"llm_request","event_id":"1bea8d8f9185352cb0210ec9ba7818e8","_offset":21.603,"duration_ms":null,"data":{"harness":{"admission":{"input_tokens":539,"max_output_tokens":2048,"reserved_usd":0.0320675},"run_id":"09eb2a47130c3d81d227208453965829","sequence":15,"source_type":"model.requested"},"model":"gpt-5.4"}},{"event_type":"llm_response","event_id":"a045197c792b7130c5794b3f73ffc1c7","_offset":22.646,"duration_ms":1042.1760082244873,"data":{"harness":{"provider":{"id":"resp_[REDACTED:hex-token]","status":"completed"},"run_id":"09eb2a47130c3d81d227208453965829","sequence":16,"source_type":"model.responded"},"input_tokens":539,"model":"gpt-5.4","output_tokens":41,"total_tokens":580}},{"event_type":"tool_call","event_id":"c7743c4d00c580f024a6be34591d1100","_offset":22.647,"duration_ms":null,"data":{"harness":{"arguments":"omitted","call_id":"call_UF2m3TC86Ae61HYHBGFNsdHx","run_id":"09eb2a47130c3d81d227208453965829","sequence":17,"source_type":"tool.requested"},"tool_name":"exec"}},{"event_type":"tool_result","event_id":"0878eca420c43aceb51bc797e4721469","_offset":41.601,"duration_ms":18954.110383987427,"data":{"harness":{"call_id":"call_UF2m3TC86Ae61HYHBGFNsdHx","run_id":"09eb2a47130c3d81d227208453965829","sequence":22,"source_type":"tool.finished"},"result":{"exit_code":0,"truncated":false},"tool_name":"exec"}},{"event_type":"llm_request","event_id":"991f41c1e1c95db40487b01f09566e6f","_offset":42.918,"duration_ms":null,"data":{"harness":{"admission":{"input_tokens":635,"max_output_tokens":2048,"reserved_usd":0.0323075},"run_id":"09eb2a47130c3d81d227208453965829","sequence":24,"source_type":"model.requested"},"model":"gpt-5.4"}},{"event_type":"llm_response","event_id":"fbc962c3cf2fa8a76632ac6c5d9c112e","_offset":45.984,"duration_ms":3065.906286239624,"data":{"harness":{"provider":{"id":"resp_[REDACTED:hex-token]","status":"completed"},"run_id":"09eb2a47130c3d81d227208453965829","sequence":25,"source_type":"model.responded"},"input_tokens":635,"model":"gpt-5.4","output_tokens":358,"total_tokens":993}},{"event_type":"tool_call","event_id":"8f70866bb8bbd5e4a5080786f49626b4","_offset":45.986,"duration_ms":null,"data":{"harness":{"arguments":"omitted","call_id":"call_LmmligrGs15xe7bqtQMqAspc","run_id":"09eb2a47130c3d81d227208453965829","sequence":26,"source_type":"tool.requested"},"tool_name":"exec"}},{"event_type":"tool_result","event_id":"d1f5795f9a9b3661d36e8d160a08848b","_offset":65.097,"duration_ms":19111.65761947632,"data":{"harness":{"call_id":"call_LmmligrGs15xe7bqtQMqAspc","run_id":"09eb2a47130c3d81d227208453965829","sequence":31,"source_type":"tool.finished"},"result":{"exit_code":0,"truncated":false},"tool_name":"exec"}},{"event_type":"llm_request","event_id":"57f79caf8643cf94d4932d4e6b8e0c18","_offset":65.293,"duration_ms":null,"data":{"harness":{"admission":{"input_tokens":1021,"max_output_tokens":2048,"reserved_usd":0.0332725},"run_id":"09eb2a47130c3d81d227208453965829","sequence":33,"source_type":"model.requested"},"model":"gpt-5.4"}},{"event_type":"llm_response","event_id":"a3cf882a583b61e49bd87356de704b93","_offset":66.802,"duration_ms":1509.0937614440918,"data":{"harness":{"provider":{"id":"resp_[REDACTED:hex-token]","status":"completed"},"run_id":"09eb2a47130c3d81d227208453965829","sequence":34,"source_type":"model.responded"},"input_tokens":1021,"model":"gpt-5.4","output_tokens":64,"total_tokens":1085}},{"event_type":"tool_call","event_id":"d770b2e9b2b86a0aedc4c7b44603ab6c","_offset":66.804,"duration_ms":null,"data":{"harness":{"arguments":"omitted","call_id":"call_nhW63yTebjbNc5SWzIKwzsjc","run_id":"09eb2a47130c3d81d227208453965829","sequence":35,"source_type":"tool.requested"},"tool_name":"finish"}},{"event_type":"session_end","event_id":"8ffa6e2c8e2bd6f5ddd44794a36eb69d","_offset":83.699,"duration_ms":null,"data":{"harness":{"run_id":"09eb2a47130c3d81d227208453965829","sequence":41,"source_type":"run.finished"},"state":"completed"}}];
+const COSTS = [0.0,0.000162,0.001137,0.001284,0.002109,0.002271,0.003261,0.003408,0.004233,0.004395,0.005385,0.005532,0.006357,0.006522,0.007512,0.007659,0.007659];
+let playing = true;
+let currentIdx = 0;
+let timer = null;
+
+function fmtTs(offset) {
+  if (offset < 60) return '+' + offset.toFixed(1) + 's';
+  return '+' + Math.floor(offset/60) + 'm' + (offset%60).toFixed(0).padStart(2,'0') + 's';
+}
+
+function icon(type) {
+  const m = {tool_call:'→',tool_result:'←',llm_request:'⬆',llm_response:'⬇',
+    session_start:'▶',session_end:'■',file_read:'📖',file_write:'📝',
+    error:'✗',user_prompt:'👤',assistant_response:'🤖',decision:'◆'};
+  return m[type] || '·';
+}
+
+function summary(ev) {
+  const d = ev.data || {};
+  if (ev.event_type === 'tool_call') return (d.tool_name||'') + ' ' + JSON.stringify(d.arguments||{}).slice(0,60);
+  if (ev.event_type === 'tool_result') return String(d.content||d.result||'').slice(0,80);
+  if (ev.event_type === 'llm_request') return (d.model||'') + ' (' + (d.message_count||0) + ' msgs)';
+  if (ev.event_type === 'llm_response') return (d.total_tokens||0) + ' tokens';
+  if (ev.event_type === 'user_prompt') return String(d.content||'').slice(0,80);
+  if (ev.event_type === 'assistant_response') return String(d.content||'').slice(0,80);
+  return '';
+}
+
+function renderEvent(ev, idx) {
+  const div = document.createElement('div');
+  div.className = 'event type-' + ev.event_type;
+  div.id = 'ev-' + idx;
+  const dur = ev.duration_ms ? (ev.duration_ms < 1000 ? ev.duration_ms.toFixed(0)+'ms' : (ev.duration_ms/1000).toFixed(1)+'s') : '';
+  div.innerHTML = `
+    <div class="event-header" onclick="toggle(${idx})">
+      <span class="ts">${fmtTs(ev._offset||0)}</span>
+      <span class="icon">${icon(ev.event_type)}</span>
+      <span class="type">${ev.event_type}</span>
+      <span class="summary">${summary(ev)}</span>
+      <span class="dur">${dur}</span>
+    </div>
+    <div class="event-body" id="body-${idx}">
+      <pre>${JSON.stringify(ev.data||{}, null, 2)}</pre>
+    </div>`;
+  return div;
+}
+
+function toggle(idx) {
+  const body = document.getElementById('body-' + idx);
+  body.classList.toggle('open');
+}
+
+function showEvent(idx) {
+  if (idx >= EVENTS.length) { playing = false; return; }
+  const ev = EVENTS[idx];
+  const div = renderEvent(ev, idx);
+  document.getElementById('timeline').appendChild(div);
+  requestAnimationFrame(() => div.classList.add('visible'));
+  document.getElementById('cost').textContent = COSTS[idx].toFixed(4);
+  document.getElementById('scrubber').value = idx;
+  currentIdx = idx + 1;
+}
+
+function showAll() {
+  clearTimeout(timer);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+  while (currentIdx < EVENTS.length) showEvent(currentIdx);
+}
+
+function scrubTo(val) {
+  clearTimeout(timer);
+  playing = false;
+  document.getElementById('btn-play').textContent = '▶ Play';
+  const tl = document.getElementById('timeline');
+  // Remove events after scrubber range
+  const existing = tl.querySelectorAll('.event');
+  existing.forEach(el => el.remove());
+  currentIdx = 0;
+  for (let i = 0; i <= parseInt(val); i++) showEvent(i);
+}
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('btn-play').textContent = playing ? '⏸ Pause' : '▶ Play';
+  if (playing) scheduleNext();
+}
+
+function scheduleNext() {
+  if (!playing || currentIdx >= EVENTS.length) return;
+  const ev = EVENTS[currentIdx];
+  const next = EVENTS[currentIdx + 1];
+  const delay = next ? Math.min((next._offset - ev._offset) * 1000 / 4, 800) : 0;
+  showEvent(currentIdx);
+  timer = setTimeout(scheduleNext, Math.max(delay, 80));
+}
+
+// Start playback
+scheduleNext();
+</script>
+</body>
+</html>

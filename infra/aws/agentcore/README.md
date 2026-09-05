@@ -1,6 +1,6 @@
 # AWS AgentCore capability probe
 
-This experiment uses the real AWS SDK and an ARM64 container in `us-east-1`. It is deliberately a separate executable from `harness run`: the production executor still needs durable remote artifact transfer and inspectable execution cleanup. The command client now requires a [Linux isolation guard](isolation/README.md) for networking and verifier writes; its AWS validation is recorded separately below. No model client or key is present in the guest or the workflow.
+This experiment uses the real AWS SDK and an ARM64 container in `us-east-1`. It remains a separate executable from `harness run`. The [full AWS harness backend](../../../docs/aws-harness.md) now provides durable remote artifact transfer and whole-runtime cleanup for the model controller. The command client now requires a [Linux isolation guard](isolation/README.md) for networking and verifier writes; its AWS validation is recorded separately below. No model client or key is present in the guest or the workflow.
 
 The probe initializes real sessions through `InvokeAgentRuntime`, executes commands through `InvokeAgentRuntimeCommand`, and checks the original bug fails, the saved GPT-5.4 patch applies, files persist, a separate session starts clean, independent assertions pass, exit codes/stderr arrive, output is bounded, and a server timeout is reported. Disconnecting the controller is an uncertain command outcome. `StopRuntimeSession` is reported as an acknowledgement, not proof of an absent microVM. The probe deletes the entire runtime and waits until `GetAgentRuntime` returns `ResourceNotFoundException`.
 
@@ -10,7 +10,7 @@ The probe initializes real sessions through `InvokeAgentRuntime`, executes comma
 
 ## Bootstrap once
 
-Use a locally authenticated account administrator for the bootstrap only. The probe refuses root and IAM-user credentials and requires the dedicated assumed role. Never paste keys into the repository or GitHub secrets.
+Use a locally authenticated account administrator for the bootstrap only. The probe refuses root and IAM-user credentials and requires the dedicated assumed role. Never paste AWS access keys into the repository or GitHub secrets.
 
 ```sh
 aws cloudformation validate-template --template-body file://infra/aws/agentcore/bootstrap.json --profile agent-harness --region us-east-1
@@ -31,7 +31,7 @@ The role allows image operations only on `agent-harness-probe`, passing only the
 
 ## Diagnosing a failed workflow
 
-No Actions secrets are required for either workflow. The normal `test` workflow uses local protocol fixtures, real Docker, and native AgentTrace without a paid model call. The AWS probe needs the two repository **variables** above and obtains temporary AWS credentials through OIDC; it never reads an OpenAI API key.
+No Actions secrets are required for the normal test workflow or this deterministic probe. The separate AWS harness workflow uses OPENAI_API_KEY only when its live model option is selected. The normal `test` workflow uses local protocol fixtures, real Docker, and native AgentTrace without a paid model call. The AWS probe needs the two repository **variables** above and obtains temporary AWS credentials through OIDC; it never reads an OpenAI API key.
 
 If `Obtain short-lived scoped credentials` fails with `AssumeRoleWithWebIdentity`, check the exact repository subject, branch, and deployed trust policy. If that step and ECR authentication succeed but `CreateAgentRuntime` returns `AccessDeniedException`, check the action and resource named in the error against the deployed bootstrap policy. Updating the JSON in Git does not update AWS: deploy the changed stack before rerunning. Errors in command checks require inspecting the private report, not adding credentials. Cleanup steps run even when a check fails.
 
@@ -39,7 +39,7 @@ If `Obtain short-lived scoped credentials` fails with `AssumeRoleWithWebIdentity
 
 There are at most three explicitly initialized sessions, serial bounded checks, an eight-minute controller deadline, 60-second idle expiry, and a 600-second maximum microVM lifetime. Lifecycle expiry terminates an instance; subsequent invocations can start another instance for the same session ID. The probe does not use expiry as proof of cleanup. Separate cleanup has an eight-minute deadline, is repeated in the workflow's `always()` step, and retains uncertain state for manual reconciliation. No runtime capacity is provisioned until invocations occur. Cloud costs and GitHub hosted-runner minutes are real. These operation limits are not an account-wide USD hard cap or a billing measurement.
 
-The CLI journals the intended runtime name before creation and sessions before initialization. An ambiguous create can be found by exact name using `--cleanup`; absence from a list alone is not reported as confirmed deletion. Actual command output is limited to 64 KiB per stream and drained after truncation. Automatic SDK retries are disabled for commands. The trusted guest service uses public platform networking. Every command and descendant must enter the socket-denying guard; the verifier uses its read-only workspace profile. These process restrictions do not claim whole-VM network isolation. Do not dispatch arbitrary agent commands until remaining backend capabilities are implemented and tested.
+The CLI journals the intended runtime name before creation and sessions before initialization. An ambiguous create can be found by exact name using `--cleanup`; absence from a list alone is not reported as confirmed deletion. Actual command output is limited to 64 KiB per stream and drained after truncation. Automatic SDK retries are disabled for commands. The trusted guest service uses public platform networking. Every command and descendant must enter the socket-denying guard; the verifier uses its read-only workspace profile. These process restrictions do not claim whole-VM network isolation. Use the full backend for model-driven commands; the probe itself only runs fixed capability checks.
 
 Private workflow artifacts retain the runtime identity, command checks, patch/verifier hashes, progress, and teardown result for seven days. The workflow deletes its runtime logs after confirmed teardown, or applies seven-day retention if teardown remains uncertain. It removes its ECR image; a one-day ECR lifecycle rule is a fallback. The empty bootstrap roles/repository remain for future runs. Remote command evidence is exported through native AgentTrace with real journal timestamps and explicit incomplete-call coverage; the original local model trace remains a separate session.
 

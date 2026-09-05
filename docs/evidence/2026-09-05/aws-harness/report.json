@@ -1,0 +1,18 @@
+{
+  "backend": "agentcore",
+  "aws_billing_usd": null,
+  "run_id": "09eb2a47130c3d81d227208453965829",
+  "state": "completed",
+  "reason": "independent verifier passed",
+  "model": "gpt-5.4",
+  "base_commit": "86cd799c0f7eb1c681aa8f17a6095749c54b2f11",
+  "image_id": "ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/agent-harness-probe@sha256:8fb8e102ec90d7ae0ad7c6f68692579a46a3eb9a9a24c291852a506dbe760c4e",
+  "verifier_sha256": "03a0a88e5cc53d6a2cfbc1223e06e0d93d72e1e1305ba87ba423325fc3fa78e7",
+  "input_tokens": 2558,
+  "output_tokens": 521,
+  "estimated_usd_uncached": 0.01421,
+  "billing_unknown": false,
+  "verified": true,
+  "verification_attempts": 1,
+  "cleanup_confirmed": true
+}

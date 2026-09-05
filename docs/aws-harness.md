@@ -4,7 +4,9 @@ The `agentcore` backend connects the real OpenAI controller to AWS execution.
 Docker remains the default. AWS needs no Docker daemon on the controller; Docker
 is used to build the ARM64 image. The manual **AWS harness** workflow builds that
 image, tests transfer and interrupted-worker reconciliation, and optionally runs
-GPT-5.4. Live acceptance results are recorded separately from implementation.
+GPT-5.4. The [full live validation](evidence/2026-09-05/aws-harness/README.md)
+passed: real artifact transfer, killed-worker reconciliation, four GPT-5.4
+requests, independent verification, native AgentTrace replay, and cleanup.
 
 ## GitHub Actions
 
@@ -31,6 +33,17 @@ OpenAI key. Download evidence before retention expires. Runtime, image and log
 cleanup run even after a failed test.
 
 ## Local controller
+
+To build the service image manually from the repository root:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o infra/aws/agentcore/harness-service ./cmd/agentcore-service
+docker buildx build --platform linux/arm64 --provenance=false --load -t agent-harness-guard:test infra/aws/agentcore
+```
+
+The generated service binary is ignored by Git. The Docker build context admits
+only the service, guard source and guard checks; it excludes controller keys and
+state. The Actions workflow pushes the image and resolves its immutable digest.
 
 Use the normal task contract with these additional fields and a prepared image:
 
