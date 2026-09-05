@@ -249,7 +249,8 @@
                   "Sid": "CreateIdentityInDefaultDirectory",
                   "Effect": "Allow",
                   "Action": [
-                    "bedrock-agentcore:CreateWorkloadIdentity"
+                    "bedrock-agentcore:CreateWorkloadIdentity",
+                    "bedrock-agentcore:TagResource"
                   ],
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default"
@@ -261,6 +262,12 @@
                       },
                       "aws:RequestTag/Project": "agent-harness",
                       "aws:RequestTag/Purpose": "bounded-probe"
+                    },
+                    "ForAllValues:StringEquals": {
+                      "aws:TagKeys": [
+                        "Project",
+                        "Purpose"
+                      ]
                     }
                   }
                 },
