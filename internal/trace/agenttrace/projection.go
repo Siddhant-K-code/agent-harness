@@ -152,6 +152,18 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			e.Data["agent_name"] = "agent-harness"
 		case "workspace.ready":
 			side["data"] = fields(d, "base_commit", "image_id", "verifier_sha256")
+		case "executor.ready":
+			side["data"] = fields(d, "backend", "isolation", "network_disabled", "read_only_workspace", "durable_execution_id", "disk_quota")
+		case "execution.prepared", "execution.finished":
+			v := fields(d, "execution_id", "backend", "readonly", "cleanup_confirmed")
+			if call, ok := calls[lastCall]; ok {
+				v["parent_event_id"] = call.event.ID
+			}
+			side["data"] = v
+		case "checkpoint.saved":
+			side["data"] = fields(d, "source_sequence", "workspace_sha256")
+		case "worker.renewed":
+			side["data"] = map[string]any{"renewal_recorded": true}
 		case "model.requested":
 			if modelPending != nil {
 				return p, errors.New("overlapping model requests")

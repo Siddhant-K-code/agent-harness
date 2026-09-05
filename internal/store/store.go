@@ -39,16 +39,19 @@ func (s State) Terminal() bool {
 }
 
 type Run struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Backend   string    `json:"backend"`
-	State     State     `json:"state"`
-	Revision  int       `json:"revision"`
-	Steps     int       `json:"steps"`
-	Reason    string    `json:"reason,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Spec      task.Spec `json:"task"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Backend      string    `json:"backend"`
+	State        State     `json:"state"`
+	Revision     int       `json:"revision"`
+	Steps        int       `json:"steps"`
+	Reason       string    `json:"reason,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Spec         task.Spec `json:"task"`
+	WorkerID     string    `json:"worker_id,omitempty"`
+	Generation   int       `json:"generation,omitempty"`
+	LeaseExpires time.Time `json:"lease_expires,omitempty"`
 }
 
 type Event struct {
@@ -294,8 +297,12 @@ func (s *Store) RequestCancel(ctx context.Context, id string) (Run, error) {
 }
 
 func (s *Store) Record(ctx context.Context, id, kind string, data any, step bool) (Run, error) {
+	return s.RecordOwned(ctx, id, "", kind, data, step)
+}
+
+func (s *Store) RecordOwned(ctx context.Context, id, owner, kind string, data any, step bool) (Run, error) {
 	return s.mutate(ctx, id, kind, data, func(r *Run) (bool, error) {
-		if r.State != Running {
+		if r.State != Running || !r.ownedBy(owner) {
 			return false, ErrConflict
 		}
 		if step {
@@ -306,12 +313,19 @@ func (s *Store) Record(ctx context.Context, id, kind string, data any, step bool
 }
 
 func (s *Store) Finish(ctx context.Context, id string, state State, reason string) (Run, error) {
+	return s.FinishOwned(ctx, id, "", state, reason)
+}
+
+func (s *Store) FinishOwned(ctx context.Context, id, owner string, state State, reason string) (Run, error) {
 	if !state.Terminal() {
 		return Run{}, errors.New("finish requires a terminal state")
 	}
 	return s.mutate(ctx, id, "run.finished", map[string]any{"requested_state": state, "reason": reason}, func(r *Run) (bool, error) {
 		if r.State.Terminal() {
 			return false, nil
+		}
+		if r.WorkerID != owner {
+			return false, ErrConflict
 		}
 		if r.State != Running && r.State != Cancelling {
 			return false, ErrConflict

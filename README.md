@@ -25,6 +25,7 @@ The example calls GPT-5.4 to fix an actual JavaScript function, then evaluates i
 bin/harness list
 bin/harness status RUN_ID
 bin/harness cancel RUN_ID
+bin/harness reconcile RUN_ID  # After an interrupted controller
 bin/harness events RUN_ID > events.jsonl
 ```
 
@@ -51,13 +52,13 @@ Containers run without networking, capabilities, a Docker socket, host credentia
 
 Durable events and [native AgentTrace export](integrations/agenttrace/README.md) are implemented. Export a terminal run with `bin/harness trace RUN_ID` after running `sh integrations/agenttrace/setup.sh`. Export defaults to metadata, records capture gaps, and uses AgentTrace's native store and replay tools. The [real-run trace evidence](docs/evidence/2026-09-05/agenttrace/manifest.json) was loaded by the pinned AgentTrace reader.
 
-Crash recovery, checkpoint resume, and an incremental outbox delivery worker are **not implemented yet**. A killed controller can leave a stale running record or a container; inspect and clean these manually. A verifier passing means its checks passed; it is not a proof that arbitrary generated code is correct or resistant to evaluator tampering.
+Crash reconciliation is implemented for new Docker runs: `harness reconcile RUN_ID` requires exclusive controller ownership, stops recorded containers, preserves partial work, and marks interrupted outcomes failed or cancelled. Private conversation/workspace checkpoints are captured at quiescent tool boundaries. Automatic resume and incremental outbox delivery remain pending. See [recovery behavior and limits](docs/recovery.md). A verifier passing means its checks passed; it is not a proof that arbitrary generated code is correct or resistant to evaluator tampering.
 
 ## Development
 
 ```sh
 go test -race ./...
-HARNESS_DOCKER_TEST=1 go test -count=1 ./internal/sandbox
+HARNESS_DOCKER_TEST=1 go test -count=1 ./internal/sandbox ./internal/runner
 go vet ./...
 ```
 

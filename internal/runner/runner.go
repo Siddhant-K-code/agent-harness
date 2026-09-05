@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
+	"github.com/Siddhant-K-code/agent-harness/internal/ownership"
+	"github.com/Siddhant-K-code/agent-harness/internal/process"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
@@ -41,6 +44,9 @@ type Report struct {
 	Verified             bool        `json:"verified"`
 	VerificationAttempts int         `json:"verification_attempts"`
 	Patch                string      `json:"patch,omitempty"`
+	Reconciled           bool        `json:"reconciled,omitempty"`
+	CleanupConfirmed     bool        `json:"cleanup_confirmed,omitempty"`
+	CheckpointAvailable  bool        `json:"checkpoint_available,omitempty"`
 }
 
 func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runErr error) {
@@ -68,10 +74,20 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	if err != nil {
 		return report, err
 	}
-	if _, err = r.Store.Start(ctx, created.ID); err != nil {
+	root := filepath.Join(r.Root, "runs", created.ID)
+	lock, err := ownership.Acquire(root)
+	if err != nil {
 		return report, err
 	}
-	root := filepath.Join(r.Root, "runs", created.ID)
+	defer lock.Close()
+	var identity [16]byte
+	if _, err = rand.Read(identity[:]); err != nil {
+		return report, err
+	}
+	owner := hex.EncodeToString(identity[:])
+	if _, err = r.Store.StartOwned(ctx, created.ID, owner); err != nil {
+		return report, err
+	}
 	report = Report{RunID: created.ID, Model: spec.Model, ImageID: image}
 	sum := sha256.Sum256(verifier)
 	report.VerifierSHA256 = hex.EncodeToString(sum[:])
@@ -111,7 +127,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				report.Patch = filepath.Join(root, "changes.patch")
 			}
 		}
-		ended, e := r.Store.Finish(finalCtx, created.ID, state, reason)
+		ended, e := r.Store.FinishOwned(finalCtx, created.ID, owner, state, reason)
 		if e != nil {
 			runErr = errors.Join(runErr, e)
 			report.State = store.Failed
@@ -144,6 +160,16 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 					cancel()
 					return
 				}
+				if current.WorkerID != owner {
+					cancel()
+					return
+				}
+				if time.Until(current.LeaseExpires) < 20*time.Second {
+					if _, e := r.Store.Renew(ctx, created.ID, owner); e != nil {
+						cancel()
+						return
+					}
+				}
 			}
 		}
 	}()
@@ -156,7 +182,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		return report, err
 	}
 	record := func(kind string, data any, step bool) error {
-		_, err := r.Store.Record(ctx, created.ID, kind, data, step)
+		_, err := r.Store.RecordOwned(ctx, created.ID, owner, kind, data, step)
 		if err == nil && r.Progress != nil {
 			fmt.Fprintln(r.Progress, kind)
 		}
@@ -165,9 +191,43 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	if err = record("workspace.ready", map[string]any{"base_commit": w.Base, "image_id": image, "verifier_sha256": report.VerifierSHA256}, false); err != nil {
 		return report, err
 	}
-	docker := sandbox.Docker{Workspace: w.Path, Image: image}
+	var executor sandbox.Executor = sandbox.Docker{Workspace: w.Path, Image: image}
+	if err = record("executor.ready", executor.Capabilities(), false); err != nil {
+		return report, err
+	}
+	execute := func(toolCtx context.Context, step int, command string, readonly bool) (res process.Result, execErr error) {
+		id, e := sandbox.Reference(created.ID, step+1)
+		if e != nil {
+			return res, e
+		}
+		if e = record("execution.prepared", map[string]any{"execution_id": id, "backend": executor.Capabilities().Backend, "readonly": readonly}, false); e != nil {
+			return res, e
+		}
+		res, execErr = executor.Execute(toolCtx, sandbox.Request{ID: id, Command: command, ReadOnly: readonly})
+		if errors.Is(execErr, sandbox.ErrCleanup) {
+			return res, execErr
+		}
+		if e = record("execution.finished", map[string]any{"execution_id": id, "cleanup_confirmed": true}, false); e != nil {
+			return res, errors.Join(execErr, e)
+		}
+		return res, execErr
+	}
 	client := model.New(r.Key, spec.Model)
 	input := []responses.ResponseInputItemUnionParam{responses.ResponseInputItemParamOfMessage(spec.Goal, "user")}
+	checkpoint := func() error {
+		current, e := r.Store.Get(ctx, created.ID)
+		if e != nil {
+			return e
+		}
+		cp, e := saveCheckpoint(ctx, root, current, w, report, input)
+		if e != nil {
+			return e
+		}
+		return record("checkpoint.saved", map[string]any{"source_sequence": cp.Sequence, "workspace_sha256": cp.Snapshot.SHA256}, false)
+	}
+	if err = checkpoint(); err != nil {
+		return report, err
+	}
 	for step := 0; step < spec.Limits.MaxSteps; step++ {
 		count, err := client.Count(ctx, input)
 		if err != nil {
@@ -221,7 +281,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				break
 			}
 			toolCtx, stop := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
-			res, e := docker.Exec(toolCtx, args.Command, false)
+			res, e := execute(toolCtx, step, args.Command, false)
 			stop()
 			if errors.Is(e, sandbox.ErrCleanup) {
 				return report, e
@@ -243,7 +303,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				break
 			}
 			verifyCtx, stop := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
-			res, e := docker.Exec(verifyCtx, string(verifier), true)
+			res, e := execute(verifyCtx, step, string(verifier), true)
 			stop()
 			report.VerificationAttempts++
 			if e != nil {
@@ -268,6 +328,9 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 			return report, err
 		}
 		input = append(input, model.ToolResult(call.ID, result))
+		if err = checkpoint(); err != nil {
+			return report, err
+		}
 	}
 	return report, errors.New("model step limit reached before verified completion")
 }
@@ -317,12 +380,5 @@ func decodeArguments(s string, v any) error {
 	return nil
 }
 func writeJSON(path string, value any) error {
-	b, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(b, '\n'), 0600)
+	return atomicJSON(path, value)
 }

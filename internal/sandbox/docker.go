@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/Siddhant-K-code/agent-harness/internal/process"
@@ -52,6 +53,27 @@ func (d Docker) Exec(ctx context.Context, command string, readonly bool) (result
 		return process.Result{}, err
 	}
 	name := "agent-harness-" + hex.EncodeToString(random[:])
+	return d.execute(ctx, name, command, readonly)
+}
+
+func (d Docker) Capabilities() Capabilities {
+	return Capabilities{Backend: "docker", Isolation: "shared_kernel", NetworkDisabled: true, ReadOnlyWorkspace: true, DurableExecutionID: true, DiskQuota: false}
+}
+
+func (d Docker) Execute(ctx context.Context, request Request) (process.Result, error) {
+	if !referencePattern.MatchString(request.ID) {
+		return process.Result{}, errors.New("invalid execution reference")
+	}
+	return d.execute(ctx, request.ID, request.Command, request.ReadOnly)
+}
+
+func (d Docker) execute(ctx context.Context, name, command string, readonly bool) (result process.Result, runErr error) {
+	if os.Getuid() == 0 {
+		return result, errors.New("run the controller as a non-root user")
+	}
+	if strings.Contains(d.Workspace, ",") {
+		return result, errors.New("workspace path cannot contain a comma")
+	}
 	// Killing the Docker client alone does not stop its container.
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -62,4 +84,49 @@ func (d Docker) Exec(ctx context.Context, command string, readonly bool) (result
 		}
 	}()
 	return process.Run(ctx, "", nil, strings.NewReader(command), MaxOutputBytes, "docker", d.args(name, readonly)...)
+}
+
+func (d Docker) Inspect(ctx context.Context, id string) (ExecutionState, error) {
+	state := ExecutionState{ID: id}
+	if !referencePattern.MatchString(id) {
+		return state, errors.New("invalid execution reference")
+	}
+	r, err := process.Run(ctx, "", nil, nil, 8192, "docker", "container", "inspect", "--format", "{{json .State}}", id)
+	if err != nil {
+		return state, err
+	}
+	if r.ExitCode != 0 {
+		if strings.Contains(r.Stderr, "No such container") || strings.Contains(r.Stderr, "No such object") {
+			return state, nil
+		}
+		return state, fmt.Errorf("inspect container: %s", r.Stderr)
+	}
+	var result struct{ Running bool }
+	if err := json.Unmarshal([]byte(r.Output), &result); err != nil {
+		return state, err
+	}
+	state.Exists = true
+	state.Running = result.Running
+	return state, nil
+}
+
+func (d Docker) Stop(ctx context.Context, id string) error {
+	if !referencePattern.MatchString(id) {
+		return errors.New("invalid execution reference")
+	}
+	r, err := process.Run(ctx, "", nil, nil, 8192, "docker", "rm", "--force", id)
+	if err != nil {
+		return err
+	}
+	if r.ExitCode != 0 && !strings.Contains(r.Stderr, "No such container") {
+		return fmt.Errorf("remove container: %s", r.Stderr)
+	}
+	state, err := d.Inspect(ctx, id)
+	if err != nil {
+		return err
+	}
+	if state.Exists {
+		return errors.New("container remains after removal")
+	}
+	return nil
 }

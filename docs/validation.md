@@ -26,7 +26,7 @@ The [report](evidence/2026-09-05/report.json) retains the actual commit, image, 
 
 The Docker integration suite also runs the example verifier against the unfixed source and requires it to fail. SDK protocol tests use a local HTTP server; production never selects that implementation. No paid API calls run in CI.
 
-Crash reconciliation and resume have not been tested because they are not yet implemented. Failure-repair quality, broader repository performance, and cost comparisons need their own acceptance evidence.
+Docker crash reconciliation is now tested as described below. Automatic resume remains unimplemented. Failure-repair quality, broader repository performance, and cost comparisons need their own acceptance evidence.
 
 ## Native AgentTrace export — September 5, 2026
 
@@ -35,3 +35,9 @@ The same live run was exported through AgentTrace 0.94.1 at pinned commit `b109e
 The reader reported 2,438 total tokens, matching the original 1,901 input and 537 output tokens. The report estimate remains $0.0128075, and verification passed once. Repeating the export returned `reused: true`. No new model or cloud calls were made.
 
 The full race suite and vet passed with real AgentTrace integration enabled. Native tests cover concurrent duplicate publication, secret canaries, parent links, missing usage, corrupted exports, symlink destinations, and a child writer terminated with exit code 91 immediately before the final rename. The interrupted export did not appear as a session and a retry succeeded. A successful finish without a separate tool-result event is explicitly recorded as such.
+
+## Crash reconciliation — September 5, 2026
+
+A real child controller started a Docker command that wrote a file and then slept. Reconciliation rejected takeover while the controller held its process lock. The test killed that process with SIGKILL, reconciled its recorded container, verified the container was absent, preserved the changed file in a patch, and recovered the paired checkpoint. The outcome was `failed`, never verified success. Repeating reconciliation succeeded. No model request was involved.
+
+The full race suite and vet passed with Docker and native AgentTrace enabled. Other checks reject stale worker writes, corrupt snapshots, traversal, external symlinks, special files, and oversized payloads, and recover a report after the terminal database write. These checks do not establish automatic resume, distributed ownership, every crash window, or cloud cleanup guarantees.

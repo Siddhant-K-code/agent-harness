@@ -28,7 +28,7 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: harness <run|doctor|list|status|cancel|events|trace> [flags]")
+		return errors.New("usage: harness <run|doctor|list|status|cancel|events|trace|reconcile> [flags]")
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	rootFlag := f.String("state-dir", ".harness", "local state and artifact directory")
@@ -48,7 +48,7 @@ func run(args []string) error {
 	defer cancel()
 	encode := func(v any) error { e := json.NewEncoder(os.Stdout); e.SetIndent("", "  "); return e.Encode(v) }
 	switch args[0] {
-	case "run", "doctor", "list", "status", "cancel", "events", "trace":
+	case "run", "doctor", "list", "status", "cancel", "events", "trace", "reconcile":
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -107,6 +107,14 @@ func run(args []string) error {
 	}
 	defer db.Close()
 	switch args[0] {
+	case "reconcile":
+		reconcileCtx, stop := context.WithTimeout(ctx, 2*time.Minute)
+		defer stop()
+		report, e := runner.Reconcile(reconcileCtx, db, root, f.Arg(0))
+		if e != nil {
+			return e
+		}
+		return encode(report)
 	case "trace":
 		v, e := db.Get(ctx, f.Arg(0))
 		if e != nil {

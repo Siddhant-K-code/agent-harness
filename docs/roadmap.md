@@ -14,15 +14,15 @@ Prepare five real task cases with pinned commits and controller-owned verifiers:
 
 Acceptance: AgentTrace's reader accepts our evidence; duplicate export and interrupted publication are safe; secret markers and omissions are accounted for. Corpus manifests identify task, environment, evaluator, and allowed spend.
 
-## 2. Durable attempts and an execution backend contract
+## 2. Durable attempts and an execution backend contract — local reconciliation implemented
 
-Refactor Docker behind lifecycle, inspection, stop, cleanup, capability, and artifact-transfer contracts. Add leases, fencing, command-attempt state, paired conversation/workspace checkpoints, and reconciliation. Handle uncertainty before automatic resume. Preserve existing local behavior through the new interface.
+Docker now implements an executor lifecycle/capability interface. New runs hold a local OS lock, renew a lease, reject stale writers, journal execution references before dispatch, and save paired private conversation/workspace checkpoints. `harness reconcile` stops orphaned executions and preserves partial work without replay. See [recovery](recovery.md). Distributed takeover, automatic resume, provider-neutral artifact transfer, and the complete fault-injection matrix remain pending.
 
 Acceptance: kill workers before dispatch, during commands, after effects but before acknowledgement, during verification, and during snapshot publication. Reconcile without silently repeating uncertain external effects or granting two workers execution ownership.
 
 ## 3. AWS AgentCore Runtime experiment in us-east-1
 
-Add `internal/sandbox/agentcore`, a prepared ARM64 environment, scoped IAM, artifact storage, and reproducible infrastructure/teardown. Test real execution, effective limits, cancellation, isolated verification, and recovery. Use the [proposed $50 experiment allocation](execution-backends.md); provisioning and spend are not authorized by this roadmap.
+Add `internal/sandbox/agentcore`, a prepared ARM64 environment, scoped IAM, artifact storage, and reproducible infrastructure/teardown. Test real execution, effective limits, cancellation, isolated verification, and recovery. Use the [proposed $50 experiment allocation](execution-backends.md); an operator must explicitly authorize provisioning and spend before running the deployment workflow.
 
 Acceptance: a real task produces a verified patch and AgentTrace evidence remotely; interrupted runs and cleanup are accounted for. If required capabilities cannot be enforced, evaluate Fargate rather than reducing guarantees silently.
 
