@@ -20,7 +20,7 @@ jobs:
       - name: Build and test Linux command isolation
         run: |
           docker build -t agent-harness-guard:test infra/aws/agentcore
-          docker run --rm -i --entrypoint python3 -v "$PWD/infra/aws/agentcore/isolation/test_guard.py:/opt/test_guard.py:ro" agent-harness-guard:test /opt/test_guard.py
+          docker run --rm -i --entrypoint python3 -v "$PWD/infra/aws/agentcore/isolation/test_guard.py:/opt/test_guard.py:ro" -v "$PWD/examples/normalize-tags:/opt/fixture:ro" -v "$PWD/docs/evidence/2026-09-05/changes.patch:/opt/candidate.patch:ro" agent-harness-guard:test /opt/test_guard.py
       - run: HARNESS_AGENTTRACE_PYTHON="$PWD/.harness/agenttrace-venv/bin/python" go test -race ./...
         env:
           HARNESS_DOCKER_TEST: '1'

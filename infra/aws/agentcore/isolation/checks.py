@@ -2,6 +2,7 @@
 import ctypes
 import errno
 import json
+import mmap
 import os
 from pathlib import Path
 import socket
@@ -43,6 +44,8 @@ def readonly():
     denied('overwrite', lambda: candidate.write_text('tampered'))
     denied('truncate', lambda: os.truncate(candidate, 0))
     with candidate.open('rb') as original:
+        denied('shared writable mapping', lambda: mmap.mmap(original.fileno(), 0, access=mmap.ACCESS_WRITE))
+        denied('readonly create flags', lambda: os.open(candidate, os.O_RDONLY | os.O_CREAT))
         denied('proc descriptor alias', lambda: Path('/proc/self/fd/' + str(original.fileno())).write_text('tampered'))
     denied('unlink', candidate.unlink)
     denied('rename', lambda: candidate.rename('/tmp/moved-candidate'))
@@ -51,16 +54,14 @@ def readonly():
     denied('touch', lambda: os.utime(candidate, None))
     denied('hardlink', lambda: os.link(candidate, '/tmp/candidate-hardlink'))
     alias = Path('/tmp/candidate-alias')
-    alias.symlink_to(candidate)
     denied('symlink alias write', lambda: alias.write_text('tampered'))
-    alias.unlink()
-    # A nested launcher cannot relax the parent's Landlock/seccomp restrictions.
+    # A nested launcher cannot relax the parent's seccomp restrictions.
     child = subprocess.run(['/usr/local/bin/harness-guard', 'work', '--',
                             'printf tampered > /workspace/tags.js'], capture_output=True)
     assert child.returncode != 0
     assert candidate.read_bytes() == before and candidate.stat().st_mode == mode
-    Path('/tmp/allowed-scratch').write_text('temporary files work')
-    print(json.dumps({'workspace_mutation_attempts_denied': 11, 'scratch_writable': True,
+    denied('scratch write', lambda: Path('/tmp/forbidden-scratch').write_text('tampered'))
+    print(json.dumps({'mutation_attempts_denied': 14, 'scratch_writable': False,
                       'candidate_bytes_and_mode_unchanged': True}))
 
 if __name__ == '__main__':

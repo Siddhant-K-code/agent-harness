@@ -9,6 +9,7 @@ for family, kind in [(socket.AF_INET, socket.SOCK_STREAM), (socket.AF_INET, sock
                      (socket.AF_UNIX, socket.SOCK_STREAM)]:
     socket.socket(family, kind).close()
 Path('/workspace/tags.js').write_text('original')
+Path('/tmp/candidate-alias').symlink_to('/workspace/tags.js')
 
 
 def guard(profile, script):
@@ -34,4 +35,7 @@ with socket.socket() as inherited:
         input='', capture_output=True, text=True, pass_fds=(64,))
     os.close(64)
     assert closed.returncode == 0, (closed.returncode, closed.stderr)
-print('Isolation checks and positive controls passed.')
+# Exercise the real saved candidate and independent verifier under the same policy.
+print(guard('work', 'cat /opt/fixture/tags.js > /workspace/tags.js; patch -d /workspace -p1 < /opt/candidate.patch; node /workspace/tags.test.js'))
+print(guard('verify', Path('/opt/fixture/verify.sh').read_text()))
+print('Isolation checks, positive controls, and real patch verification passed.')

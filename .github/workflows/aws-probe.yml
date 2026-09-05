@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           image="$REGISTRY/agent-harness-probe:$PROBE_TAG"
           docker buildx build --platform linux/arm64 --provenance=false --load --pull -t "$image" infra/aws/agentcore
-          docker run --rm -i --entrypoint python3 -v "$PWD/infra/aws/agentcore/isolation/test_guard.py:/opt/test_guard.py:ro" "$image" /opt/test_guard.py
+          docker run --rm -i --entrypoint python3 -v "$PWD/infra/aws/agentcore/isolation/test_guard.py:/opt/test_guard.py:ro" -v "$PWD/examples/normalize-tags:/opt/fixture:ro" -v "$PWD/docs/evidence/2026-09-05/changes.patch:/opt/candidate.patch:ro" "$image" /opt/test_guard.py
           docker push "$image"
           digest=$(aws ecr describe-images --repository-name agent-harness-probe --image-ids "imageTag=$PROBE_TAG" --query 'imageDetails[0].imageDigest' --output text)
           echo "uri=$REGISTRY/agent-harness-probe@$digest" >> "$GITHUB_OUTPUT"

@@ -160,7 +160,7 @@ func run() error {
 		return err
 	}
 	state := State{Version: 1, Name: "agent_harness_probe_" + hex.EncodeToString(nonce[:]), Region: *region, Created: time.Now().UTC()}
-	report := Report{Version: 2, Trace: agenttrace.RemoteSource{ID: agenttrace.RemoteID(state.Name)}, Region: *region, Image: *image, Started: state.Created, Limits: map[string]any{"max_sessions": 3, "idle_session_seconds": 60, "max_session_lifetime_seconds": 600, "automatic_model_calls": false, "network": "PUBLIC", "network_disabled": false, "command_network_disabled": false, "command_isolation": "landlock-seccomp-required", "read_only_verifier_workspace_enforced": false, "session_absence_inspection": false, "workspace_disk_quota_enforced": false, "production_backend_enabled": false}}
+	report := Report{Version: 2, Trace: agenttrace.RemoteSource{ID: agenttrace.RemoteID(state.Name)}, Region: *region, Image: *image, Started: state.Created, Limits: map[string]any{"max_sessions": 3, "idle_session_seconds": 60, "max_session_lifetime_seconds": 600, "automatic_model_calls": false, "network": "PUBLIC", "network_disabled": false, "command_network_disabled": false, "command_isolation": "seccomp-allowlist-v1", "read_only_verifier_workspace_enforced": false, "verifier_scratch_writable": false, "session_absence_inspection": false, "workspace_disk_quota_enforced": false, "production_backend_enabled": false}}
 	if err := save(*filename, state); err != nil {
 		return err
 	}
@@ -332,7 +332,7 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 	if err != nil {
 		return err
 	}
-	if err = expect("fresh_session_candidate_transfer", verifySession, "set -eu; test ! -e /workspace/session-marker\n"+install, 20, 0, "COMPLETED"); err != nil {
+	if err = expect("fresh_session_candidate_transfer", verifySession, "set -eu; test ! -e /workspace/session-marker\n"+install+"ln -s /workspace/tags.js /tmp/candidate-alias\n", 20, 0, "COMPLETED"); err != nil {
 		return err
 	}
 	result, err := commandWithContext(ctx, "verifier_write_isolation", verifySession, "python3 /opt/harness/isolation-checks.py readonly", "verify", 20)
