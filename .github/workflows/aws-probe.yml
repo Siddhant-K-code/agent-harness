@@ -23,6 +23,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned AgentTrace
+        run: sh integrations/agenttrace/setup.sh
       - name: Check repository variables
         env:
           DEPLOY_ROLE: ${{ vars.AGENT_HARNESS_AWS_ROLE_ARN }}
@@ -32,7 +37,7 @@ jobs:
           test -n "$RUNTIME_ROLE" || { echo '::error::Set repository variable AGENT_HARNESS_AWS_RUNTIME_ROLE_ARN from the bootstrap RuntimeRoleArn output.'; exit 1; }
       - name: Build and check protocol
         run: |
-          go test ./internal/sandbox/agentcore
+          HARNESS_AGENTTRACE_PYTHON="$PWD/.harness/agenttrace-venv/bin/python" go test ./internal/sandbox/agentcore ./internal/trace/agenttrace
           go build -o bin/agentcore-probe ./cmd/agentcore-probe
       - name: Obtain short-lived scoped credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,6 +59,7 @@ jobs:
           set -euo pipefail
           image="$REGISTRY/agent-harness-probe:$PROBE_TAG"
           docker buildx build --platform linux/arm64 --provenance=false --load --pull -t "$image" infra/aws/agentcore
+          docker run --rm -i --entrypoint python3 -v "$PWD/infra/aws/agentcore/isolation/test_guard.py:/opt/test_guard.py:ro" "$image" /opt/test_guard.py
           docker push "$image"
           digest=$(aws ecr describe-images --repository-name agent-harness-probe --image-ids "imageTag=$PROBE_TAG" --query 'imageDetails[0].imageDigest' --output text)
           echo "uri=$REGISTRY/agent-harness-probe@$digest" >> "$GITHUB_OUTPUT"
@@ -74,6 +80,14 @@ jobs:
         env:
           PROBE_TAG: ${{ steps.image.outputs.tag }}
         run: python3 infra/aws/agentcore/cleanup.py
+      - name: Export and verify native remote trace
+        if: always()
+        run: |
+          if [ -f .harness/aws-probe.json.trace.json ]; then
+            bin/agentcore-probe --export-trace > .harness/aws-trace-export.json
+            bin/agentcore-probe --export-trace > .harness/aws-trace-export-repeat.json
+            .harness/agenttrace-venv/bin/python integrations/agenttrace/verify_remote.py
+          fi
       - name: Save private evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,3 +98,7 @@ jobs:
           path: |
             .harness/aws-probe*.json
             .harness-probe-report.json
+            .harness/aws-traces/
+            .harness/aws-trace*.json
+            .harness/aws-trace-replay.html
+            .harness/aws-trace-replay.txt

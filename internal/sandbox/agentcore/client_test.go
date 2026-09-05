@@ -3,6 +3,7 @@ package agentcore
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentcore/types"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -36,5 +37,22 @@ func TestMissingOutcomeRejected(t *testing.T) {
 	r := Result{Started: true}
 	if err := r.consume(types.ResponseChunk{ContentStop: &types.ContentStopEvent{Status: types.CommandExecutionStatusCompleted}}); err == nil {
 		t.Fatal("invented missing exit code")
+	}
+}
+
+func TestGuardedCommandCannotEscapeArgument(t *testing.T) {
+	for _, script := range []string{"echo hi", "echo 'hello'; $(printf injection)", "line one\nline two", "'; exit 99; #"} {
+		wrapped, err := GuardedCommand("verify", script)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Real shell parsing must deliver exactly one script argument to the launcher.
+		out, err := exec.Command("/bin/sh", "-c", "set -- "+wrapped+"; test \"$#\" -eq 4 && test \"$2\" = verify && printf %s \"$4\"").Output()
+		if err != nil || string(out) != script {
+			t.Fatalf("unsafe command quoting: %q %v", out, err)
+		}
+	}
+	if _, err := GuardedCommand("verify; exit 0", "ignored"); err == nil {
+		t.Fatal("accepted arbitrary profile")
 	}
 }

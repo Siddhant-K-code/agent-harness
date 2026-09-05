@@ -39,3 +39,15 @@ HARNESS_AGENTTRACE_PYTHON="$PWD/.harness/agenttrace-venv/bin/python" go test -ra
 ```
 
 Tests exercise the real pinned native store and renderer, duplicate concurrent exports, secret canaries, corruption, and abrupt failure before publication. No simulated model/executor is used by this integration. Incremental outbox delivery remains separate future work.
+
+## Remote AgentCore evidence
+
+The AWS probe now writes a versioned journal before each command API call and after each observed result. It exports through the same pinned native bridge, with stable IDs, parent links, atomic publication, redaction, and checksum verification. The metadata records zero model calls because this deterministic probe reuses the existing GPT-5.4 patch. AWS billed cost remains unknown.
+
+```sh
+bin/agentcore-probe --export-trace --state .harness/aws-probe.json
+```
+
+This command reads `.harness/aws-probe.json.trace.json` and requires no AWS credentials or API calls. `--trace-output` and `--python` select other paths. An interrupted command stays without a native `tool_result`; its partial result/error remains in the sidecar. A stop acknowledgement or successful runtime teardown does not invent that missing outcome. The earlier aggregate report lacks command timestamps and is deliberately not accepted as a journal.
+
+The AWS workflow exports twice to verify idempotency, loads the result through the real `TraceStore`, and produces native text/HTML replay. It retains those artifacts with the private report. Export requires a terminal controller journal; a worker killed before a terminal record needs explicit reconciliation before export, rather than fabricated completion.

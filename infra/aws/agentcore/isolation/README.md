@@ -1,0 +1,15 @@
+# Command isolation boundary
+
+Every `agentcore.Client` command enters the image-owned `harness-guard` executable. The command text is one quoted argument; neither profile nor text is concatenated as an outer shell program. `work` and `verify` are the only accepted profiles. There is no raw-command fallback.
+
+The guard runs as an ordinary non-root UID. It closes inherited descriptors above stderr, rejects unexpected standard-stream types, sets `no_new_privs`, installs Landlock and seccomp, clears the environment, changes to `/workspace`, then executes Bash. Failed policy setup exits 125 before the command executes. Kernel Landlock ABI 3 or newer and unprivileged seccomp are mandatory. The C launcher is single-threaded during setup; restrictions are inherited across exec and child creation.
+
+- Both profiles deny socket creation, network operations, io_uring, descriptor theft, ptrace/process-memory access, cross-process signalling, and new namespaces. This includes localhost and Unix sockets. The guard also blocks device ioctls except FIOCLEX, which only marks a descriptor close-on-exec and is required by musl's file reader.
+- Landlock confines writes to `/workspace` and `/tmp` for work commands. The verifier can write `/tmp` and `/dev/null`, but cannot write, truncate, rename, remove, or create workspace files. Verifier metadata mutations such as chmod, chown, timestamps, and xattrs are denied by seccomp.
+- The verifier runs in a fresh AgentCore session after a trusted candidate transfer. It receives the independent verifier through the command payload, after the filesystem restrictions are installed. A nested `work` launcher cannot relax an inherited verifier policy.
+
+`checks.py` attempts TCP/UDP/IPv6/Unix sockets, io_uring, a child-process escape, direct writes/truncation, symlink and proc-fd aliases, hard links, rename/unlink, metadata changes, and a nested launcher. `test_guard.py` adds positive controls in an unrestricted container and verifies inherited socket closure and environment clearing. CI builds and executes the real image; the AWS workflow repeats the checks against the actual runtime. A passing local check does not establish kernel support in AWS.
+
+This is a command-process boundary, not a claim that the entire AgentCore microVM has disabled networking. Its trusted HTTP service still uses the platform network. The guest role remains minimally scoped and is not considered secret from guest code. Unix-socket tools, network-dependent builds, signalling utilities, and some debuggers are intentionally unsupported by this initial strict profile. Filesystem capacity remains unbounded; kernel vulnerabilities, side channels, and arbitrary workload compatibility are outside this evidence. Do not promote the client to the production executor until artifact handoff, controller ownership, and reconciliation meet that contract.
+
+References: [Linux Landlock](https://docs.kernel.org/userspace-api/landlock.html), [seccomp](https://man7.org/linux/man-pages/man2/seccomp.2.html). The checked-in implementation uses the system's libseccomp; its compiled binary is identified by the immutable runtime image digest.

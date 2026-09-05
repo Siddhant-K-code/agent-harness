@@ -12,12 +12,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
+	"github.com/Siddhant-K-code/agent-harness/internal/trace/agenttrace"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	control "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
@@ -43,20 +45,21 @@ type Check struct {
 	Error  string           `json:"error,omitempty"`
 }
 type Report struct {
-	Version          int            `json:"version"`
-	Region           string         `json:"region"`
-	Image            string         `json:"image"`
-	PatchSHA256      string         `json:"patch_sha256"`
-	VerifierSHA256   string         `json:"verifier_sha256"`
-	ModelCalls       int            `json:"new_model_calls"`
-	Started          time.Time      `json:"started"`
-	Finished         time.Time      `json:"finished"`
-	Checks           []Check        `json:"checks"`
-	StopAcknowledged bool           `json:"stop_acknowledged"`
-	RuntimeDeleted   bool           `json:"runtime_deletion_confirmed"`
-	Passed           bool           `json:"probe_passed"`
-	Error            string         `json:"error,omitempty"`
-	Limits           map[string]any `json:"limits_and_gaps"`
+	Trace            agenttrace.RemoteSource `json:"trace"`
+	Version          int                     `json:"version"`
+	Region           string                  `json:"region"`
+	Image            string                  `json:"image"`
+	PatchSHA256      string                  `json:"patch_sha256"`
+	VerifierSHA256   string                  `json:"verifier_sha256"`
+	ModelCalls       int                     `json:"new_model_calls"`
+	Started          time.Time               `json:"started"`
+	Finished         time.Time               `json:"finished"`
+	Checks           []Check                 `json:"checks"`
+	StopAcknowledged bool                    `json:"stop_acknowledged"`
+	RuntimeDeleted   bool                    `json:"runtime_deletion_confirmed"`
+	Passed           bool                    `json:"probe_passed"`
+	Error            string                  `json:"error,omitempty"`
+	Limits           map[string]any          `json:"limits_and_gaps"`
 }
 
 func main() {
@@ -70,8 +73,49 @@ func run() error {
 	role := flag.String("execution-role", "", "scoped runtime execution role ARN")
 	region := flag.String("region", "us-east-1", "experiment region (us-east-1 only)")
 	filename := flag.String("state", ".harness/aws-probe.json", "private durable cleanup state")
+	traceOnly := flag.Bool("export-trace", false, "export the durable remote journal through native AgentTrace; no AWS calls")
+	python := flag.String("python", ".harness/agenttrace-venv/bin/python", "pinned AgentTrace Python")
+	traceOutput := flag.String("trace-output", ".harness/aws-traces", "private native trace directory")
 	cleanupOnly := flag.Bool("cleanup", false, "reconcile and delete the runtime named in the state file")
 	flag.Parse()
+	if *traceOnly {
+		f, err := os.Open(*filename + ".trace.json")
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() || info.Size() > 32<<20 {
+			return errors.New("invalid remote journal file")
+		}
+		b, err := io.ReadAll(io.LimitReader(f, 32<<20+1))
+		if err != nil {
+			return err
+		}
+		if len(b) > 32<<20 {
+			return errors.New("remote journal exceeds limit")
+		}
+		var source agenttrace.RemoteSource
+		if err = json.Unmarshal(b, &source); err != nil {
+			return err
+		}
+		projection, err := agenttrace.BuildRemote(source, false)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		result, err := agenttrace.Export(ctx, *python, *traceOutput, projection)
+		if err != nil {
+			return err
+		}
+		b, _ = json.Marshal(result)
+		fmt.Println(string(b))
+		return nil
+	}
 	if *region != "us-east-1" {
 		return errors.New("this bounded experiment is restricted to us-east-1")
 	}
@@ -116,8 +160,11 @@ func run() error {
 		return err
 	}
 	state := State{Version: 1, Name: "agent_harness_probe_" + hex.EncodeToString(nonce[:]), Region: *region, Created: time.Now().UTC()}
-	report := Report{Version: 1, Region: *region, Image: *image, Started: state.Created, Limits: map[string]any{"max_sessions": 3, "idle_session_seconds": 60, "max_session_lifetime_seconds": 600, "automatic_model_calls": false, "network": "PUBLIC", "network_disabled": false, "read_only_verifier_workspace_enforced": false, "session_absence_inspection": false, "workspace_disk_quota_enforced": false, "production_backend_enabled": false}}
+	report := Report{Version: 2, Trace: agenttrace.RemoteSource{ID: agenttrace.RemoteID(state.Name)}, Region: *region, Image: *image, Started: state.Created, Limits: map[string]any{"max_sessions": 3, "idle_session_seconds": 60, "max_session_lifetime_seconds": 600, "automatic_model_calls": false, "network": "PUBLIC", "network_disabled": false, "command_network_disabled": false, "command_isolation": "landlock-seccomp-required", "read_only_verifier_workspace_enforced": false, "session_absence_inspection": false, "workspace_disk_quota_enforced": false, "production_backend_enabled": false}}
 	if err := save(*filename, state); err != nil {
+		return err
+	}
+	if err := record(*filename, &report, "probe.started", "", map[string]any{"region": *region, "image_digest": strings.Split(*image, "@sha256:")[1]}); err != nil {
 		return err
 	}
 	experimentErr := experiment(ctx, cp, cfg, *filename, &state, &report, *image, *role)
@@ -130,6 +177,13 @@ func run() error {
 	report.Passed = combined == nil
 	if combined != nil {
 		report.Error = combined.Error()
+	}
+	if err := record(*filename, &report, "runtime.cleanup_observed", "", map[string]any{"runtime_deletion_confirmed": state.Deleted}); err != nil {
+		combined = errors.Join(combined, err)
+		report.Passed = false
+	}
+	if err := record(*filename, &report, "probe.finished", "", map[string]any{"passed": report.Passed, "runtime_deletion_confirmed": state.Deleted, "stop_acknowledged": report.StopAcknowledged, "new_model_calls": 0}); err != nil {
+		combined = errors.Join(combined, err)
 	}
 	if err := save(*filename+".report.json", report); err != nil {
 		combined = errors.Join(combined, err)
@@ -192,9 +246,24 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 		fmt.Fprintln(os.Stderr, "initializing", suffix, "session")
 		return session, client.Start(ctx, session)
 	}
-	command := func(name, session, script string, timeout int32) (agentcore.Result, error) {
+	commandWithContext := func(commandCtx context.Context, name, session, script, profile string, timeout int32) (agentcore.Result, error) {
 		fmt.Fprintln(os.Stderr, "check:", name)
-		result, err := client.Command(ctx, session, "/bin/bash -c "+quote(script), timeout)
+		callID := fmt.Sprintf("%s-%d", report.Trace.ID, len(report.Trace.Records)+1)
+		wrapped, wrapErr := agentcore.GuardedCommand(profile, script)
+		if wrapErr != nil {
+			return agentcore.Result{}, wrapErr
+		}
+		if err := record(filename, report, "command.requested", callID, map[string]any{"check": name, "profile": profile, "timeout_seconds": timeout, "command": script, "command_sha256": digest([]byte(wrapped)), "session_label": strings.TrimPrefix(session, state.Name+"-")}); err != nil {
+			return agentcore.Result{}, err
+		}
+		result, err := client.CommandProfile(commandCtx, session, script, profile, timeout)
+		observed := map[string]any{"result": result}
+		if err != nil {
+			observed["error"] = err.Error()
+		}
+		if e := record(filename, report, "command.observed", callID, observed); e != nil {
+			err = errors.Join(err, e)
+		}
 		check := Check{Name: name, Result: result}
 		if err != nil {
 			check.Error = err.Error()
@@ -204,6 +273,9 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 			err = errors.Join(err, e)
 		}
 		return result, err
+	}
+	command := func(name, session, script string, timeout int32) (agentcore.Result, error) {
+		return commandWithContext(ctx, name, session, script, "work", timeout)
 	}
 	expect := func(name, session, script string, timeout int32, exit int32, status string) error {
 		result, err := command(name, session, script, timeout)
@@ -229,12 +301,22 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 	}
 	report.PatchSHA256 = digest(patch)
 	report.VerifierSHA256 = digest(verifier)
+	if err = record(filename, report, "artifacts.observed", "", map[string]any{"patch_sha256": report.PatchSHA256, "verifier_sha256": report.VerifierSHA256}); err != nil {
+		return err
+	}
 	install := put("/workspace/tags.js", source) + put("/tmp/candidate.patch", patch) + "patch -d /workspace -p1 < /tmp/candidate.patch\n"
 	session, err := start("work")
 	if err != nil {
 		return err
 	}
 	if err = expect("nonroot_and_tools", session, "set -eu; test \"$(id -u)\" -ne 0; node --version; python3 --version; git --version", 20, 0, "COMPLETED"); err != nil {
+		return err
+	}
+	if err = expect("command_network_isolation", session, "python3 /opt/harness/isolation-checks.py network", 20, 0, "COMPLETED"); err != nil {
+		return err
+	}
+	report.Limits["command_network_disabled"] = true
+	if err = record(filename, report, "isolation.checked", "", map[string]any{"check": "command_network_isolation", "passed": true, "command_network_disabled": true}); err != nil {
 		return err
 	}
 	if err = expect("original_bug_rejected", session, "set -eu\n"+put("/workspace/tags.js", source)+"/bin/bash -c "+quote(string(verifier)), 20, 1, "COMPLETED"); err != nil {
@@ -250,10 +332,28 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 	if err != nil {
 		return err
 	}
-	if err = expect("fresh_session_verification", verifySession, "set -eu; test ! -e /workspace/session-marker\n"+install+"/bin/bash -c "+quote(string(verifier)), 20, 0, "COMPLETED"); err != nil {
+	if err = expect("fresh_session_candidate_transfer", verifySession, "set -eu; test ! -e /workspace/session-marker\n"+install, 20, 0, "COMPLETED"); err != nil {
 		return err
 	}
-	result, err := command("nonzero_exit_and_stderr", session, "echo deliberate-error >&2; exit 7", 10)
+	result, err := commandWithContext(ctx, "verifier_write_isolation", verifySession, "python3 /opt/harness/isolation-checks.py readonly", "verify", 20)
+	if err != nil {
+		return err
+	}
+	if result.ExitCode == nil || *result.ExitCode != 0 {
+		return errors.New("verifier mutation denial check failed")
+	}
+	report.Limits["read_only_verifier_workspace_enforced"] = true
+	if err = record(filename, report, "isolation.checked", "", map[string]any{"check": "verifier_write_isolation", "passed": true, "read_only_workspace_enforced": true}); err != nil {
+		return err
+	}
+	result, err = commandWithContext(ctx, "fresh_session_verification", verifySession, string(verifier), "verify", 20)
+	if err != nil {
+		return err
+	}
+	if result.ExitCode == nil || *result.ExitCode != 0 {
+		return errors.New("read-only independent verification failed")
+	}
+	result, err = command("nonzero_exit_and_stderr", session, "echo deliberate-error >&2; exit 7", 10)
 	if err != nil {
 		return err
 	}
@@ -279,13 +379,8 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 		return err
 	}
 	cancelCtx, stop := context.WithTimeout(ctx, time.Second)
-	result, err = client.Command(cancelCtx, cancelSession, "/bin/bash -c 'sleep 10'", 10)
+	result, err = commandWithContext(cancelCtx, "controller_disconnect", cancelSession, "sleep 10", "work", 10)
 	stop()
-	check := Check{Name: "controller_disconnect", Result: result}
-	if err != nil {
-		check.Error = err.Error()
-	}
-	report.Checks = append(report.Checks, check)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Errorf("disconnect must end at the controller deadline, got: %v", err)
 	}
@@ -293,7 +388,7 @@ func experiment(ctx context.Context, cp *control.Client, cfg aws.Config, filenam
 		return err
 	}
 	report.StopAcknowledged = true
-	return nil
+	return record(filename, report, "session.stop_observed", "", map[string]any{"acknowledged": true})
 }
 
 func cleanup(ctx context.Context, cp *control.Client, cfg aws.Config, filename string, state *State) error {
@@ -408,4 +503,13 @@ func save(filename string, value any) error {
 	}
 	defer d.Close()
 	return d.Sync()
+}
+
+func record(filename string, report *Report, kind, callID string, data any) error {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	report.Trace.Records = append(report.Trace.Records, agenttrace.RemoteRecord{Sequence: len(report.Trace.Records) + 1, Type: kind, At: time.Now().UTC(), CallID: callID, Data: b})
+	return save(filename+".trace.json", report.Trace)
 }

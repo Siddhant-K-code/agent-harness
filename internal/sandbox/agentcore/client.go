@@ -1,6 +1,6 @@
 // Package agentcore implements the real AWS command protocol. It intentionally
-// does not satisfy sandbox.Executor until readonly mounts and stop inspection
-// can meet that interface's guarantees.
+// does not satisfy sandbox.Executor until durable artifact transfer and stop
+// inspection can meet that interface's guarantees. Commands require the guard.
 package agentcore
 
 import (
@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	runtime "github.com/aws/aws-sdk-go-v2/service/bedrockagentcore"
@@ -17,7 +18,7 @@ import (
 const MaxOutput = 64 << 10
 
 type Client struct {
-	API *runtime.Client
+	api *runtime.Client
 	ARN string
 }
 type Result struct {
@@ -31,11 +32,11 @@ type Result struct {
 }
 
 func New(cfg aws.Config, arn string) Client {
-	return Client{API: runtime.NewFromConfig(cfg, func(o *runtime.Options) { o.Retryer = aws.NopRetryer{} }), ARN: arn}
+	return Client{api: runtime.NewFromConfig(cfg, func(o *runtime.Options) { o.Retryer = aws.NopRetryer{} }), ARN: arn}
 }
 
 func (c Client) Start(ctx context.Context, session string) error {
-	out, err := c.API.InvokeAgentRuntime(ctx, &runtime.InvokeAgentRuntimeInput{
+	out, err := c.api.InvokeAgentRuntime(ctx, &runtime.InvokeAgentRuntimeInput{
 		AgentRuntimeArn: aws.String(c.ARN), RuntimeSessionId: aws.String(session),
 		ContentType: aws.String("application/json"), Payload: []byte(`{"operation":"health"}`),
 	})
@@ -103,11 +104,30 @@ func (r *Result) consume(chunk types.ResponseChunk) error {
 	return nil
 }
 
-func (c Client) Command(ctx context.Context, session, command string, timeoutSeconds int32) (result Result, err error) {
+// GuardedCommand is the only command path exposed by this client. A missing
+// launcher or unsupported kernel fails the command; there is no raw fallback.
+func GuardedCommand(profile, script string) (string, error) {
+	if profile != "work" && profile != "verify" {
+		return "", errors.New("invalid command isolation profile")
+	}
+	return "/usr/local/bin/harness-guard " + profile + " -- '" + strings.ReplaceAll(script, "'", "'\"'\"'") + "'", nil
+}
+func (c Client) Command(ctx context.Context, session, script string, timeoutSeconds int32) (Result, error) {
+	return c.CommandProfile(ctx, session, script, "work", timeoutSeconds)
+}
+func (c Client) CommandProfile(ctx context.Context, session, script, profile string, timeoutSeconds int32) (Result, error) {
+	command, err := GuardedCommand(profile, script)
+	if err != nil {
+		return Result{}, err
+	}
+	return c.invokeCommand(ctx, session, command, timeoutSeconds)
+}
+
+func (c Client) invokeCommand(ctx context.Context, session, command string, timeoutSeconds int32) (result Result, err error) {
 	if len(session) < 33 || len(session) > 256 || len(command) == 0 || len(command) > 64<<10 || timeoutSeconds < 1 || timeoutSeconds > 3600 {
 		return result, errors.New("invalid command request bounds")
 	}
-	out, err := c.API.InvokeAgentRuntimeCommand(ctx, &runtime.InvokeAgentRuntimeCommandInput{
+	out, err := c.api.InvokeAgentRuntimeCommand(ctx, &runtime.InvokeAgentRuntimeCommandInput{
 		AgentRuntimeArn: aws.String(c.ARN), RuntimeSessionId: aws.String(session),
 		ContentType: aws.String("application/json"), Accept: aws.String("application/vnd.amazon.eventstream"),
 		Body: &types.InvokeAgentRuntimeCommandRequestBody{Command: aws.String(command), Timeout: aws.Int32(timeoutSeconds)},
@@ -141,7 +161,7 @@ func (c Client) Command(ctx context.Context, session, command string, timeoutSec
 // Stop acknowledges a request. It does not claim the microVM is absent: AWS
 // exposes no session-inspection operation that proves that fact here.
 func (c Client) Stop(ctx context.Context, session string) error {
-	out, err := c.API.StopRuntimeSession(ctx, &runtime.StopRuntimeSessionInput{AgentRuntimeArn: aws.String(c.ARN), RuntimeSessionId: aws.String(session)})
+	out, err := c.api.StopRuntimeSession(ctx, &runtime.StopRuntimeSessionInput{AgentRuntimeArn: aws.String(c.ARN), RuntimeSessionId: aws.String(session)})
 	if err != nil {
 		return err
 	}
