@@ -1,0 +1,328 @@
+package runner
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/Siddhant-K-code/agent-harness/internal/model"
+	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
+	"github.com/Siddhant-K-code/agent-harness/internal/store"
+	"github.com/Siddhant-K-code/agent-harness/internal/task"
+	"github.com/Siddhant-K-code/agent-harness/internal/workspace"
+	"github.com/openai/openai-go/v3/responses"
+)
+
+type Runner struct {
+	Store     *store.Store
+	Root, Key string
+	Progress  io.Writer
+}
+type Report struct {
+	RunID                string      `json:"run_id"`
+	State                store.State `json:"state"`
+	Reason               string      `json:"reason"`
+	Model                string      `json:"model"`
+	BaseCommit           string      `json:"base_commit"`
+	ImageID              string      `json:"image_id"`
+	VerifierSHA256       string      `json:"verifier_sha256"`
+	InputTokens          int64       `json:"input_tokens"`
+	OutputTokens         int64       `json:"output_tokens"`
+	EstimatedUSD         float64     `json:"estimated_usd_uncached"`
+	BillingUnknown       bool        `json:"billing_unknown"`
+	Verified             bool        `json:"verified"`
+	VerificationAttempts int         `json:"verification_attempts"`
+	Patch                string      `json:"patch,omitempty"`
+}
+
+func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runErr error) {
+	if err := spec.Validate(); err != nil {
+		return report, err
+	}
+	price, err := model.Pricing(spec.Model)
+	if err != nil {
+		return report, err
+	}
+	if r.Key == "" {
+		return report, errors.New("OpenAI API key is required")
+	}
+	ctx, cancel := context.WithTimeout(parent, time.Duration(spec.Limits.TimeoutMS)*time.Millisecond)
+	defer cancel()
+	image, err := sandbox.Check(ctx, spec.Image)
+	if err != nil {
+		return report, err
+	}
+	verifier, err := readVerifier(spec.Verifier)
+	if err != nil {
+		return report, err
+	}
+	created, err := r.Store.Create(ctx, spec)
+	if err != nil {
+		return report, err
+	}
+	if _, err = r.Store.Start(ctx, created.ID); err != nil {
+		return report, err
+	}
+	root := filepath.Join(r.Root, "runs", created.ID)
+	report = Report{RunID: created.ID, Model: spec.Model, ImageID: image}
+	sum := sha256.Sum256(verifier)
+	report.VerifierSHA256 = hex.EncodeToString(sum[:])
+	if r.Progress != nil {
+		fmt.Fprintf(r.Progress, "run %s\n", created.ID)
+	}
+	var w workspace.Workspace
+	// Preserve partial work even on failure, using an independent bounded context.
+	defer func() {
+		finalCtx, finalCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer finalCancel()
+		state := store.Failed
+		reason := "run failed"
+		if runErr == nil && report.Verified {
+			state = store.Completed
+			reason = "independent verifier passed"
+		} else if runErr != nil {
+			reason = runErr.Error()
+		}
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			state = store.TimedOut
+			reason = "run deadline exceeded"
+		} else if errors.Is(ctx.Err(), context.Canceled) {
+			state = store.Cancelled
+			reason = "run cancelled"
+		}
+		if w.GitDir != "" {
+			patch, e := w.Patch(finalCtx)
+			if e == nil {
+				e = os.WriteFile(filepath.Join(root, "changes.patch"), []byte(patch), 0600)
+			}
+			if e != nil {
+				state = store.Failed
+				reason = "save patch: " + e.Error()
+				runErr = errors.New(reason)
+			} else {
+				report.Patch = filepath.Join(root, "changes.patch")
+			}
+		}
+		ended, e := r.Store.Finish(finalCtx, created.ID, state, reason)
+		if e != nil {
+			runErr = errors.Join(runErr, e)
+			report.State = store.Failed
+			report.Reason = "persist final state: " + e.Error()
+		} else {
+			report.State, report.Reason = ended.State, ended.Reason
+		}
+		if report.State != store.Completed && runErr == nil {
+			runErr = errors.New(report.Reason)
+		}
+		if e := writeJSON(filepath.Join(root, "report.json"), report); e != nil {
+			runErr = errors.Join(runErr, e)
+		}
+	}()
+	// A separate CLI can cancel a running worker through the durable store.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				current, e := r.Store.Get(ctx, created.ID)
+				if e != nil || current.State == store.Cancelling {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	w, err = workspace.Prepare(ctx, root, spec.Repository, spec.Ref)
+	if err != nil {
+		return report, err
+	}
+	report.BaseCommit = w.Base
+	if err = os.WriteFile(filepath.Join(root, "verifier.sh"), verifier, 0600); err != nil {
+		return report, err
+	}
+	record := func(kind string, data any, step bool) error {
+		_, err := r.Store.Record(ctx, created.ID, kind, data, step)
+		if err == nil && r.Progress != nil {
+			fmt.Fprintln(r.Progress, kind)
+		}
+		return err
+	}
+	if err = record("workspace.ready", map[string]any{"base_commit": w.Base, "image_id": image, "verifier_sha256": report.VerifierSHA256}, false); err != nil {
+		return report, err
+	}
+	docker := sandbox.Docker{Workspace: w.Path, Image: image}
+	client := model.New(r.Key, spec.Model)
+	input := []responses.ResponseInputItemUnionParam{responses.ResponseInputItemParamOfMessage(spec.Goal, "user")}
+	for step := 0; step < spec.Limits.MaxSteps; step++ {
+		count, err := client.Count(ctx, input)
+		if err != nil {
+			return report, err
+		}
+		reservation, err := admit(spec.Limits, price, report, count)
+		if err != nil {
+			return report, err
+		}
+		if err = record("model.requested", map[string]any{"input_tokens": count, "reserved_usd": reservation, "max_output_tokens": spec.Limits.MaxOutputTokens}, true); err != nil {
+			return report, err
+		}
+		reply, err := client.Next(ctx, input, spec.Limits.MaxOutputTokens)
+		if err != nil {
+			report.BillingUnknown = true
+			return report, err
+		}
+		report.InputTokens += reply.Usage.InputTokens
+		report.OutputTokens += reply.Usage.OutputTokens
+		report.EstimatedUSD += price.Cost(reply.Usage.InputTokens, reply.Usage.OutputTokens)
+		if err = record("model.responded", reply.Raw, false); err != nil {
+			return report, err
+		}
+		if reply.Usage.InputTokens <= 0 {
+			report.BillingUnknown = true
+			return report, errors.New("response omitted usage; stopping")
+		}
+		if reply.Status != "completed" {
+			return report, fmt.Errorf("model response status %q", reply.Status)
+		}
+		input = append(input, reply.Items...)
+		if len(reply.Calls) != 1 {
+			return report, fmt.Errorf("expected one serial tool call, received %d", len(reply.Calls))
+		}
+		call := reply.Calls[0]
+		if err = record("tool.requested", call, false); err != nil {
+			return report, err
+		}
+		var result any
+		switch call.Name {
+		case "exec":
+			var args struct {
+				Command string `json:"command"`
+			}
+			if err = decodeArguments(call.Arguments, &args); err != nil {
+				result = map[string]string{"error": err.Error()}
+				break
+			}
+			if args.Command == "" {
+				result = map[string]string{"error": "command is empty"}
+				break
+			}
+			toolCtx, stop := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
+			res, e := docker.Exec(toolCtx, args.Command, false)
+			stop()
+			if errors.Is(e, sandbox.ErrCleanup) {
+				return report, e
+			}
+			if ctx.Err() != nil {
+				return report, ctx.Err()
+			}
+			if e != nil {
+				result = map[string]any{"error": e.Error(), "result": res}
+			} else {
+				result = res
+			}
+		case "finish":
+			var args struct {
+				Summary string `json:"summary"`
+			}
+			if err = decodeArguments(call.Arguments, &args); err != nil {
+				result = map[string]string{"error": err.Error()}
+				break
+			}
+			verifyCtx, stop := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
+			res, e := docker.Exec(verifyCtx, string(verifier), true)
+			stop()
+			report.VerificationAttempts++
+			if e != nil {
+				return report, fmt.Errorf("verifier execution: %w", e)
+			}
+			passed := res.ExitCode == 0
+			if err = record("verification.finished", map[string]any{"passed": passed, "result": res, "attempt": report.VerificationAttempts, "summary": args.Summary}, false); err != nil {
+				return report, err
+			}
+			if passed {
+				report.Verified = true
+				return report, nil
+			}
+			if report.VerificationAttempts > spec.Limits.MaxRepairs {
+				return report, errors.New("independent verification failed; repair limit reached")
+			}
+			result = map[string]any{"verified": false, "feedback": res, "instruction": "Repair the implementation, then call finish again."}
+		default:
+			result = map[string]string{"error": "unknown tool"}
+		}
+		if err = record("tool.finished", map[string]any{"call_id": call.ID, "result": result}, false); err != nil {
+			return report, err
+		}
+		input = append(input, model.ToolResult(call.ID, result))
+	}
+	return report, errors.New("model step limit reached before verified completion")
+}
+
+func readVerifier(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, 1<<20+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) == 0 || len(b) > 1<<20 {
+		return nil, errors.New("verifier must be 1 byte..1 MiB")
+	}
+	return b, nil
+}
+
+// Admit reserves the largest possible next response before any paid generation.
+func admit(limits task.Limits, price model.Price, report Report, input int64) (float64, error) {
+	if input <= 0 || input > 200000 {
+		return 0, errors.New("input token count outside supported context limits")
+	}
+	reservation := price.Cost(input, limits.MaxOutputTokens)
+	if report.EstimatedUSD+reservation > limits.MaxUSD {
+		return 0, errors.New("USD budget cannot cover the next request's maximum output")
+	}
+	if report.InputTokens+report.OutputTokens+input+limits.MaxOutputTokens > limits.MaxTotalTokens {
+		return 0, errors.New("token budget cannot cover the next request")
+	}
+	return reservation, nil
+}
+func decodeArguments(s string, v any) error {
+	if len(s) > 128<<10 {
+		return errors.New("tool arguments exceed 128 KiB")
+	}
+	d := json.NewDecoder(bytes.NewBufferString(s))
+	d.DisallowUnknownFields()
+	if err := d.Decode(v); err != nil {
+		return err
+	}
+	if err := d.Decode(new(any)); err != io.EOF {
+		return errors.New("invalid trailing tool arguments")
+	}
+	return nil
+}
+func writeJSON(path string, value any) error {
+	b, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(b, '\n'), 0600)
+}

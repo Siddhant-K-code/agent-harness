@@ -1,0 +1,2 @@
+# Preserve unified-diff context lines exactly in recorded patch artifacts.
+docs/evidence/**/*.patch -whitespace

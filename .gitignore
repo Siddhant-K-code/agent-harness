@@ -1,0 +1,7 @@
+.harness/
+bin/
+coverage.out
+.env
+.env.*
+!.env.example
+.docker-test-*

@@ -1,0 +1,20 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: docker pull node:22-alpine
+      - run: go test -race ./...
+        env:
+          HARNESS_DOCKER_TEST: '1'
+      - run: go vet ./...
+      - run: go build ./cmd/harness

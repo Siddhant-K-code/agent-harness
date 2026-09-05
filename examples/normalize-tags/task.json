@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "normalize-tags",
+  "goal": "Fix normalizeTags in tags.js. Given an array of strings, trim whitespace, drop empty tags, remove case-insensitive duplicates while keeping the first spelling, and preserve first-occurrence order. Do not mutate the input array. Export normalizeTags through CommonJS. Add useful tests if you want. Call finish when ready.",
+  "repository": "../../.harness/example-repo",
+  "ref": "HEAD",
+  "model": "gpt-5.4",
+  "image": "node:22-alpine",
+  "verifier": "verify.sh",
+  "limits": {
+    "max_steps": 12,
+    "timeout_ms": 600000,
+    "tool_timeout_ms": 30000,
+    "max_output_tokens": 2048,
+    "max_total_tokens": 50000,
+    "max_repairs": 2,
+    "max_usd": 2
+  }
+}

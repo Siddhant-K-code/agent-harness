@@ -1,0 +1,16 @@
+{
+  "run_id": "a5fc5db3af9719003429189a5c31d5d8",
+  "state": "completed",
+  "reason": "independent verifier passed",
+  "model": "gpt-5.4",
+  "base_commit": "0d317330e02a06fa956a4026eaaa9e73b6ad997e",
+  "image_id": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+  "verifier_sha256": "03a0a88e5cc53d6a2cfbc1223e06e0d93d72e1e1305ba87ba423325fc3fa78e7",
+  "input_tokens": 1901,
+  "output_tokens": 537,
+  "estimated_usd_uncached": 0.0128075,
+  "billing_unknown": false,
+  "verified": true,
+  "verification_attempts": 1,
+  "patch": "changes.patch"
+}

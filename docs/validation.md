@@ -1,0 +1,29 @@
+# Validation evidence
+
+## Live run — September 5, 2026
+
+The real CLI used GPT-5.4 through the OpenAI Responses API and executed commands in Docker through Colima on macOS. The task repaired the deliberately faulty tag-normalization function in the example repository.
+
+| Measurement | Observed result |
+|---|---|
+| Run | `a5fc5db3af9719003429189a5c31d5d8` |
+| Model requests | 3 |
+| Input tokens | 1,901 |
+| Output tokens | 537 |
+| Estimated USD, using uncached input pricing | $0.0128075 |
+| Authorized run cap | $2 |
+| Independent verification | 6 cases and input-mutation checks passed |
+| Verification attempts | 1 |
+| Final state | `completed` |
+
+The model read the source, changed the implementation, added and ran its own tests, then requested completion. The controller independently ran the held-out verifier and captured the resulting patch. The local source fixture remained unchanged.
+
+The [report](evidence/2026-09-05/report.json) retains the actual commit, image, and verifier identities; its local absolute patch path is replaced with a relative path. The [patch](evidence/2026-09-05/changes.patch) is the unmodified generated artifact. Raw Responses events remain local in SQLite. This is one smoke test, not a general coding benchmark or a recovery demonstration.
+
+## Automated checks
+
+`go test -race ./...`, `go vet ./...`, and a CLI build were run locally. With `HARNESS_DOCKER_TEST=1`, the test suite also executes real Docker containers. Coverage includes state/event/outbox consistency, transactional rollback, cancellation winning over completion, concurrent writers, response continuation and tool call IDs, strict configuration, bounded subprocess output, source-repository isolation, new-file and symlink patch capture, and Docker restrictions and timeout cleanup.
+
+The Docker integration suite also runs the example verifier against the unfixed source and requires it to fail. SDK protocol tests use a local HTTP server; production never selects that implementation. No paid API calls run in CI.
+
+Crash reconciliation and resume have not been tested because they are not yet implemented. Failure-repair quality, broader repository performance, cost comparisons, and trace export need their own acceptance evidence.

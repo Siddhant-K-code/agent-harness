@@ -1,0 +1,56 @@
+diff --git a/tags.js b/tags.js
+index 3f1aa25..89a7c9c 100644
+--- a/tags.js
++++ b/tags.js
+@@ -1,5 +1,24 @@
+ function normalizeTags(tags) {
+-  return [...new Set(tags)];
++  const seen = new Set();
++  const normalized = [];
++
++  for (const tag of tags) {
++    const trimmed = tag.trim();
++
++    if (trimmed === '') {
++      continue;
++    }
++
++    const key = trimmed.toLowerCase();
++    if (seen.has(key)) {
++      continue;
++    }
++
++    seen.add(key);
++    normalized.push(trimmed);
++  }
++
++  return normalized;
+ }
+ 
+ module.exports = { normalizeTags };
+diff --git a/tags.test.js b/tags.test.js
+new file mode 100644
+index 0000000..1f2b153
+--- /dev/null
++++ b/tags.test.js
+@@ -0,0 +1,20 @@
++const assert = require('assert');
++const { normalizeTags } = require('./tags');
++
++{
++  const input = ['  Foo  ', 'bar', ' foo', '', '   ', 'BAR', 'Baz', 'baz  '];
++  const copy = input.slice();
++
++  assert.deepStrictEqual(normalizeTags(input), ['Foo', 'bar', 'Baz']);
++  assert.deepStrictEqual(input, copy);
++}
++
++{
++  assert.deepStrictEqual(normalizeTags([]), []);
++}
++
++{
++  assert.deepStrictEqual(normalizeTags([' One ', 'two', 'THREE']), ['One', 'two', 'THREE']);
++}
++
++console.log('tests passed');
