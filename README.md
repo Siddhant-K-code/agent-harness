@@ -60,3 +60,5 @@ go vet ./...
 ```
 
 The integration test launches real containers and checks writes, read-only verification, credential exclusion, disabled networking, and timeout cleanup. HTTP stubs are limited to SDK protocol tests. See [architecture](docs/architecture.md) and [implementation roadmap](docs/roadmap.md).
+
+The next design connects [AgentTrace, Distill, and the other projects](docs/native-integrations.md) through native runtime hooks and versioned evidence. The [remote execution plan](docs/execution-backends.md) evaluates AWS AgentCore Runtime in `us-east-1`, with Fargate and other providers behind an explicit backend contract. These integrations are proposed, not implemented.
