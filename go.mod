@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0
 	github.com/aws/smithy-go v1.28.1
 	github.com/openai/openai-go/v3 v3.56.0
+	golang.org/x/term v0.40.0
 	modernc.org/sqlite v1.58.0
 )
 

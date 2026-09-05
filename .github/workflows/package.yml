@@ -1,0 +1,79 @@
+name: Package preview
+on:
+  pull_request:
+    paths: ['cmd/harness/**', 'internal/**', 'examples/normalize-tags/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
+  push:
+    branches: [main]
+    paths: ['cmd/harness/**', 'internal/**', 'examples/normalize-tags/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the private preview (for example v0.1.0-rc.1)
+        default: v0.1.0-rc.1
+        required: true
+      draft_release:
+        description: Create a draft prerelease after all package checks pass
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, os: linux, arch: amd64}
+          - {runner: ubuntu-24.04-arm, os: linux, arch: arm64}
+          - {runner: macos-15-intel, os: darwin, arch: amd64}
+          - {runner: macos-15, os: darwin, arch: arm64}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      PACKAGE_VERSION: ${{ inputs.version || 'v0.0.0-dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check credential and task setup behavior
+        run: go test -race ./cmd/harness ./internal/credentials ./internal/scaffold ./internal/model
+      - name: Build archive and dependency notices
+        run: sh scripts/package.sh "$PACKAGE_VERSION" "${{ matrix.os }}" "${{ matrix.arch }}"
+      - name: Install and exercise the native archive (no model or AWS calls)
+        run: python3 scripts/smoke-package.py "dist/agent-harness_${PACKAGE_VERSION}_${{ matrix.os }}_${{ matrix.arch }}.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+  draft:
+    if: github.event_name == 'workflow_dispatch' && inputs.draft_release && github.ref == 'refs/heads/main'
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      PACKAGE_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - name: Draft only; no public publish
+        run: |
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          gh release create "$PACKAGE_VERSION" *.tar.gz checksums.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION — private preview" --notes-file ../docs/preview-release.md

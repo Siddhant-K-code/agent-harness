@@ -5,3 +5,7 @@ coverage.out
 .env.*
 !.env.example
 .docker-test-*
+dist/
+harness-demo/
+harness-task/
+/harness

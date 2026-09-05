@@ -1,48 +1,64 @@
 # agent-harness
 
-A coding agent runtime with real OpenAI Responses API calls, Docker and AWS execution, durable events, and independent verification.
+**Delegate a coding task. Review a verified patch.**
 
-The new [AWS harness backend](docs/aws-harness.md) transfers checksummed workspaces into disposable AgentCore runtimes and confirms whole-runtime deletion before accepting changes. The [first full AWS run passed](docs/evidence/2026-09-05/aws-harness/README.md): four real GPT-5.4 requests, independent verification, native AgentTrace and confirmed teardown, for $0.01421 in estimated model charges. The manual **AWS harness** workflow includes transfer/crash acceptance and an optional bounded model run. Docker remains the default.
+A CLI for bounded coding work: give it a committed repository, a goal, an independent verifier, and a model budget. It runs a real agent in an isolated workspace and returns the patch, check results, usage estimate, and cleanup status. Your source checkout stays unchanged.
 
-The first milestone is a complete local loop: load a task, copy a committed repository snapshot, let the model inspect and edit it in Docker, run an operator-supplied verifier, and save the patch and outcome. The runtime contains no simulated model or executor. The [first real GPT-5.4 run passed](docs/validation.md), using three requests and about $0.013 in estimated token charges.
+Bring your own OpenAI key. Run locally with Docker; AWS AgentCore is an advanced, explicitly configured backend. The controller calls OpenAI directly. There is no harness account, hosted credential proxy, or automatic trace upload.
 
-## Run it
+**Private preview.** macOS/Linux binaries and a bundled demo are packaged for evaluation. Repository access is still required; see [installation and setup](docs/getting-started.md) and [distribution status](DISTRIBUTION.md).
 
-Requires Go 1.25+, Git, a running Docker daemon, a prepared container image, and an OpenAI API key. macOS and Linux are supported. The default image for the example is `node:22-alpine`; Docker images are resolved to an immutable local image ID before execution. Pulling dependencies or images is an explicit setup step.
+## Start with a real task
+
+After [installing the CLI](docs/getting-started.md), you need Git, a running Docker daemon, and an OpenAI API key:
 
 ```sh
-go build -o bin/harness ./cmd/harness
+harness init
+cd harness-demo
+harness auth login
 docker pull node:22-alpine
-sh examples/normalize-tags/setup.sh
-export OPENAI_API_KEY=...  # Prefer a secret manager or the local key file below.
-bin/harness doctor --task examples/normalize-tags/task.json
-bin/harness run --task examples/normalize-tags/task.json
+harness doctor
+harness run
 ```
 
-Alternatively put the key in `.harness/openai-key`, with file permissions `600` and directory permissions `700`. This directory is ignored by Git. `--api-key-file` selects a different file; `OPENAI_API_KEY` takes precedence. The key stays in the controller and is never passed into containers. `doctor` checks configuration and Docker without making a model request.
+`init` creates a real Git fixture, task configuration, and separate verifier from assets bundled in the binary. `auth login` reads the key with hidden input and saves an owner-only local file. `doctor` checks configuration without calling a model. The demo fixes JavaScript tag normalization and runs six independent cases plus input-mutation checks. The generated task defaults to GPT-5.4 and a **$0.50 estimated model budget per run**. Review `harness.task.json` before running; `run` makes real, billable API requests.
 
-The example calls GPT-5.4 to fix an actual JavaScript function, then evaluates it against separately held tests. It permits at most $2 of estimated standard text charges for one run. Review `task.json` before running: model calls incur real charges. No paid API calls run in the default test suite.
+Environment-based BYOK remains available: supply `OPENAI_API_KEY` from your secret manager and skip login. Setup never uploads a key to GitHub Actions. See [key storage, precedence, and CI](docs/getting-started.md#bring-your-own-key).
 
 ```sh
-bin/harness list
-bin/harness status RUN_ID
-bin/harness cancel RUN_ID
-bin/harness reconcile RUN_ID  # After an interrupted controller
-bin/harness events RUN_ID > events.jsonl
+harness list
+harness status RUN_ID
+harness events RUN_ID > events.jsonl
+harness cancel RUN_ID
+harness reconcile RUN_ID
+harness trace setup       # Optional native AgentTrace dependency
+harness trace RUN_ID
 ```
 
-Flags go before a run ID. Use `--state-dir PATH` on every command when selecting a different state directory. Progress goes to stderr; results go to stdout. A failed, cancelled, or timed-out run exits nonzero.
+Results go to stdout, progress to stderr. Flags go before a run ID. State defaults to `.harness` in the current directory; use `--state-dir PATH` consistently when working elsewhere. Failed runs exit nonzero.
 
-## Your own repository
+## Use your repository
 
-Copy the example task and set `repository`, `ref`, `goal`, `image`, and `verifier`. Paths resolve relative to the task JSON. Only the selected Git commit is copied; local uncommitted edits and untracked files are excluded. The source repository is never edited.
+Create a separate task directory from a local repository and your own verifier:
 
-The verifier is a shell script controlled by you. It is read before execution and its hash is recorded. At verification time, the controller supplies it to a fresh container over stdin; the agent's workspace is mounted read-only. Put build outputs and caches in `/tmp`. Prepare dependencies in the image because run containers have no network. Require meaningful assertions and propagate failures with a nonzero exit code.
+```sh
+harness init --repo /path/to/repo \
+  --goal 'Fix the parser for empty input' \
+  --image my-project-env:dev \
+  --verifier /path/to/independent-checks.sh \
+  --max-usd 0.50 parser-task
+cd parser-task
+harness doctor
+harness run
+```
 
-The model has two tools:
+The chosen Git ref is pinned at setup. Only committed files are copied. The verifier is copied into the task directory and supplied by the controller at verification time. Prepare dependencies in the image: agent commands have no network. Docker verification mounts the workspace read-only; use `/tmp` for build outputs and caches. AWS verification denies all filesystem writes. A passing verifier means its checks passed; it does not establish correctness beyond those checks.
 
-- `exec`: execute a shell script inside a fresh container, using `/workspace` for persistent files.
-- `finish`: propose completion and trigger verification. Failed verification returns feedback for a bounded repair attempt.
+## Why this exists
+
+Our focus is reducing the work of reviewing a delegated coding task: a bounded attempt, independently checked changes, and an explicit record of what happened. BYOK and multiple execution environments support that workflow. They are not unique on their own. See the [product decision and next milestones](docs/product-direction.md).
+
+The [first complete AWS run](docs/evidence/2026-09-05/aws-harness/README.md) used four real GPT-5.4 requests, passed its independent verifier, exported a native AgentTrace session, and confirmed runtime deletion. Estimated model cost was $0.01421; AWS billing was not measured. This validates one small task, not general coding performance. [Crash and artifact-transfer acceptance](docs/aws-harness.md) provide separate execution evidence.
 
 ## Evidence and limits
 
@@ -52,7 +68,7 @@ Before every generation request, the controller calls OpenAI's input-token count
 
 Containers run without networking, capabilities, a Docker socket, host credentials, or the host home directory. Root filesystems are read-only; CPU, memory, PID count, runtime, and captured output are bounded. Only the disposable workspace is bind-mounted. Commands run as a non-root UID. Docker isolation shares a kernel and is not a multi-tenant security boundary. Workspace disk quotas remain future work. AWS microVM execution is available through the explicit agentcore backend.
 
-Durable events and [native AgentTrace export](integrations/agenttrace/README.md) are implemented. Export a terminal run with `bin/harness trace RUN_ID` after running `sh integrations/agenttrace/setup.sh`. Export defaults to metadata, records capture gaps, and uses AgentTrace's native store and replay tools. The [real-run trace evidence](docs/evidence/2026-09-05/agenttrace/manifest.json) was loaded by the pinned AgentTrace reader.
+Durable events and [native AgentTrace export](integrations/agenttrace/README.md) are implemented. Export a terminal run with `bin/harness trace RUN_ID` after running `harness trace setup`. Export defaults to metadata, records capture gaps, and uses AgentTrace's native store and replay tools. The [real-run trace evidence](docs/evidence/2026-09-05/agenttrace/manifest.json) was loaded by the pinned AgentTrace reader.
 
 Crash reconciliation is implemented for Docker and AgentCore runs: `harness reconcile RUN_ID` requires exclusive controller ownership, stops recorded executors, preserves accepted work, and marks interrupted outcomes failed or cancelled. AWS confirms whole-runtime deletion and preserves the last accepted artifact. Private conversation/workspace checkpoints are captured at quiescent tool boundaries. Automatic resume and incremental outbox delivery remain pending. See [recovery behavior and limits](docs/recovery.md). A verifier passing means its checks passed; it is not a proof that arbitrary generated code is correct or resistant to evaluator tampering.
 

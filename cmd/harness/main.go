@@ -12,10 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Siddhant-K-code/agent-harness/internal/model"
+	"github.com/Siddhant-K-code/agent-harness/internal/credentials"
 	"github.com/Siddhant-K-code/agent-harness/internal/runner"
-	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
-	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 	"github.com/Siddhant-K-code/agent-harness/internal/trace/agenttrace"
@@ -28,17 +26,47 @@ func main() {
 	}
 }
 func run(args []string) error {
-	if len(args) == 0 {
-		return errors.New("usage: harness <run|doctor|list|status|cancel|events|trace|reconcile> [flags]")
+	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
+		fmt.Fprint(os.Stdout, usage)
+		return nil
+	}
+	switch args[0] {
+	case "version", "--version":
+		fmt.Fprintf(os.Stdout, "harness %s (commit %s)\n", version, commit)
+		return nil
+	case "init":
+		return initCommand(args[1:])
+	case "auth":
+		return authCommand(args[1:])
+	case "trace":
+		if len(args) > 1 && args[1] == "setup" {
+			return traceSetup(args[2:])
+		}
+	case "run", "doctor", "list", "status", "cancel", "events", "reconcile":
+	default:
+		return fmt.Errorf("unknown command %q; use harness --help", args[0])
 	}
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	rootFlag := f.String("state-dir", ".harness", "local state and artifact directory")
-	keyFile := f.String("api-key-file", "", "key file (default: <state-dir>/openai-key)")
-	taskFile := f.String("task", "", "task JSON file")
-	traceOutput := f.String("output", "", "AgentTrace root (default: <state-dir>/traces)")
-	tracePython := f.String("python", "", "Python with pinned AgentTrace (default: <state-dir>/agenttrace-venv/bin/python)")
-	traceContent := f.Bool("include-content", false, "export selected command/output content with AgentTrace redaction")
+	keyFile, taskFile := new(string), new(string)
+	traceOutput, tracePython, traceContent := new(string), new(string), new(bool)
+	jsonOutput := new(bool)
+	if args[0] == "run" || args[0] == "doctor" {
+		keyFile = f.String("api-key-file", "", "private key file (OPENAI_API_KEY takes precedence)")
+		taskFile = f.String("task", "harness.task.json", "task JSON file")
+	}
+	if args[0] == "doctor" {
+		jsonOutput = f.Bool("json", false, "emit machine-readable diagnostics")
+	}
+	if args[0] == "trace" {
+		traceOutput = f.String("output", "", "AgentTrace root (default: <state-dir>/traces)")
+		tracePython = f.String("python", "", "Python with pinned AgentTrace (default: <state-dir>/agenttrace-venv/bin/python)")
+		traceContent = f.Bool("include-content", false, "export selected command/output content with AgentTrace redaction")
+	}
 	if err := f.Parse(args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	root, err := filepath.Abs(*rootFlag)
@@ -48,11 +76,6 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	encode := func(v any) error { e := json.NewEncoder(os.Stdout); e.SetIndent("", "  "); return e.Encode(v) }
-	switch args[0] {
-	case "run", "doctor", "list", "status", "cancel", "events", "trace", "reconcile":
-	default:
-		return fmt.Errorf("unknown command %q", args[0])
-	}
 	if args[0] == "run" || args[0] == "doctor" {
 		if *taskFile == "" {
 			return errors.New("--task is required")
@@ -62,33 +85,11 @@ func run(args []string) error {
 		}
 		spec, err := task.Load(*taskFile)
 		if err != nil {
-			return err
+			return fmt.Errorf("load task: %w; use harness init for a demo or --task PATH", err)
 		}
-		if *keyFile == "" {
-			*keyFile = filepath.Join(root, "openai-key")
-		}
-		key, keyErr := model.LoadKey(*keyFile)
+		key, keyErr := credentials.Resolve(*keyFile, root)
 		if args[0] == "doctor" {
-			checkCtx, stop := context.WithTimeout(ctx, 15*time.Second)
-			defer stop()
-			image := spec.Image
-			var backendErr error
-			if spec.Backend == "agentcore" {
-				_, backendErr = agentcore.Check(checkCtx, spec.AWS.Region, spec.Image, spec.AWS.ExecutionRole)
-			} else {
-				image, backendErr = sandbox.Check(checkCtx, spec.Image)
-			}
-			result := map[string]any{"key_configured": keyErr == nil, "image_id": image, "backend": spec.Backend, "model": spec.Model, "max_usd": spec.Limits.MaxUSD}
-			if keyErr != nil {
-				result["key_error"] = keyErr.Error()
-			}
-			if backendErr != nil {
-				result["backend_error"] = backendErr.Error()
-			}
-			if err = encode(result); err != nil {
-				return err
-			}
-			return errors.Join(keyErr, backendErr)
+			return doctor(ctx, spec, root, key, keyErr, *jsonOutput)
 		}
 		if keyErr != nil {
 			return keyErr
@@ -98,7 +99,8 @@ func run(args []string) error {
 			return err
 		}
 		defer db.Close()
-		report, runErr := (runner.Runner{Store: db, Root: root, Key: key, Progress: os.Stderr}).Run(ctx, spec)
+		fmt.Fprintf(os.Stderr, "Running %s with %s; estimated model budget $%.2f. Artifacts: %s\n", spec.Name, spec.Model, spec.Limits.MaxUSD, root)
+		report, runErr := (runner.Runner{Store: db, Root: root, Key: key.Value, Progress: os.Stderr}).Run(ctx, spec)
 		return errors.Join(runErr, encode(report))
 	}
 	if args[0] == "list" {
