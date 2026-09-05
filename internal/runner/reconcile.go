@@ -18,6 +18,8 @@ import (
 	"github.com/Siddhant-K-code/agent-harness/internal/workspace"
 )
 
+var ErrUncertainDispatch = errors.New("recorded execution is absent but dispatch completion is unknown; inspect the Docker daemon and client before manual reconciliation")
+
 // Reconcile stops known executions only after obtaining the dead controller's
 // OS lock. It preserves candidate work and reports uncertainty, never success.
 func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, error) {
@@ -127,8 +129,21 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 		report.EstimatedUSD = price.Cost(report.InputTokens, report.OutputTokens)
 	}
 	for reference := range prepared {
-		if err := (sandbox.Docker{}).Stop(ctx, reference); err != nil {
+		docker := sandbox.Docker{}
+		observed, err := docker.Inspect(ctx, reference)
+		if err != nil {
+			return report, err
+		}
+		if !observed.Exists {
+			// An orphaned Docker client or an in-flight daemon request could
+			// create the container after this lookup. Do not infer cleanup.
+			return report, fmt.Errorf("%w: %s", ErrUncertainDispatch, reference)
+		}
+		if err := docker.Stop(ctx, reference); err != nil {
 			return report, fmt.Errorf("stop recorded execution: %w", err)
+		}
+		if _, err := db.ConfirmExecutionCleanup(ctx, id, r.WorkerID, reference); err != nil {
+			return report, err
 		}
 	}
 	report.CleanupConfirmed = true

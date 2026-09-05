@@ -215,3 +215,35 @@ func TestReconcileTerminalWithoutReport(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReconcileMissingExecutionIsUncertain(t *testing.T) {
+	if os.Getenv("HARNESS_DOCKER_TEST") != "1" {
+		t.Skip("requires real Docker inspection")
+	}
+	ctx := context.Background()
+	root := t.TempDir()
+	db, err := store.Open(filepath.Join(root, "harness.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	r, err := db.Create(ctx, crashSpec(root, filepath.Join(root, "verify.sh")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.StartOwned(ctx, r.ID, "interrupted-dispatch"); err != nil {
+		t.Fatal(err)
+	}
+	ref, _ := sandbox.Reference(r.ID, 1)
+	if _, err = db.RecordOwned(ctx, r.ID, "interrupted-dispatch", "execution.prepared", map[string]any{"backend": "docker", "execution_id": ref}, false); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Reconcile(ctx, db, root, r.ID)
+	if !errors.Is(err, ErrUncertainDispatch) || report.CleanupConfirmed {
+		t.Fatalf("claimed cleanup from absence: %+v %v", report, err)
+	}
+	current, err := db.Get(ctx, r.ID)
+	if err != nil || current.State != store.Running {
+		t.Fatalf("lost unresolved dispatch: %+v %v", current, err)
+	}
+}

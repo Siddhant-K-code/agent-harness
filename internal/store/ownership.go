@@ -41,6 +41,18 @@ func (s *Store) Renew(ctx context.Context, id, owner string) (Run, error) {
 	})
 }
 
+// ConfirmExecutionCleanup is for reconciliation while holding the run's OS
+// lock. The caller must have observed the container, stopped it, and confirmed
+// absence. A missing container without an acknowledgement is not sufficient.
+func (s *Store) ConfirmExecutionCleanup(ctx context.Context, id, expectedOwner, reference string) (Run, error) {
+	return s.mutate(ctx, id, "execution.finished", map[string]any{"execution_id": reference, "cleanup_confirmed": true, "reconciled": true}, func(r *Run) (bool, error) {
+		if r.WorkerID != expectedOwner {
+			return false, ErrConflict
+		}
+		return true, nil
+	})
+}
+
 // ReconcileInterrupted is called only while the caller holds the exclusive
 // local process lock and has confirmed that all recorded executions stopped.
 // It fences the old identity. It never marks an interrupted run completed.

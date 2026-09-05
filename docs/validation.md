@@ -40,7 +40,7 @@ The full race suite and vet passed with real AgentTrace integration enabled. Nat
 
 A real child controller started a Docker command that wrote a file and then slept. Reconciliation rejected takeover while the controller held its process lock. The test killed that process with SIGKILL, reconciled its recorded container, verified the container was absent, preserved the changed file in a patch, and recovered the paired checkpoint. The outcome was `failed`, never verified success. Repeating reconciliation succeeded. No model request was involved.
 
-The full race suite and vet passed with Docker and native AgentTrace enabled. Other checks reject stale worker writes, corrupt snapshots, traversal, external symlinks, special files, and oversized payloads, and recover a report after the terminal database write. These checks do not establish automatic resume, distributed ownership, every crash window, or cloud cleanup guarantees.
+The full race suite and vet passed with Docker and native AgentTrace enabled. A real Docker lookup of an unacknowledged missing execution is reported as uncertain, not cleaned up. Other checks reject stale worker writes, corrupt snapshots, traversal, external symlinks, special files, and oversized payloads, and recover a report after the terminal database write. These checks do not establish automatic resume, distributed ownership, every crash window, or cloud cleanup guarantees.
 
 ## AWS probe preparation — September 5, 2026
 
