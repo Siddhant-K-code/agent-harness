@@ -28,13 +28,13 @@ The `Package and signed release` workflow tests each native archive on its match
 
 The manually requested `main` release job needs the encrypted repository secret `HARNESS_RELEASE_SIGNING_KEY`, holding the private PEM corresponding to the committed public key. Only the signing step references it, through a temporary owner-only file removed at step exit. Repository administrators and trusted workflow changes can access repository secrets; protect those permissions accordingly. The public key belongs in source control; the private key does not.
 
-After checking the intended commit's CI results, trigger a signed prerelease:
+After checking the intended commit's CI results, trigger a signed release with a new version:
 
 ```sh
 gh workflow run package.yml --repo Siddhant-K-code/agent-harness --ref main \
-  -f version=v0.1.0-rc.6 -f draft_release=true -f publish_release=true
+  -f version=v0.1.0 -f draft_release=true -f prerelease=false -f publish_release=true
 ```
 
-The workflow signs exactly the four tested archives plus metadata and installer, creates a draft, downloads all uploaded assets, and verifies them against the committed key before publication. Use `publish_release=false` to retain the verified draft. Existing release versions are not overwritten; choose a new version. If an upload or verification fails, publication stops and any created draft stays available for investigation.
+The workflow signs exactly the four tested archives plus metadata and installer, creates a draft, downloads all uploaded assets, and verifies them against the committed key before publication. Use `prerelease=false` for a normal release marked Latest, or `prerelease=true` (the default) for a prerelease. GitHub excludes prereleases from Latest. Use `publish_release=false` to retain the verified draft. Existing release versions are not overwritten; choose a new version. If an upload or verification fails, publication stops and any created draft stays available for investigation.
 
 Normal test/package CI needs no signing, OpenAI, or AWS secrets. Signing and setup make no paid model requests. Signing-key rotation requires updating the public key and embedded bootstrap together, distributing a newly trusted bootstrap, and replacing the encrypted secret. Older bootstraps intentionally reject a newly signed key; keep a protected backup if old-key releases must remain maintainable.

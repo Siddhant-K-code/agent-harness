@@ -8,13 +8,17 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Explicit release version (for example v0.1.0-rc.6)
-        default: v0.1.0-rc.6
+        description: Explicit release version (for example v0.1.0)
+        default: v0.1.0
         required: true
       draft_release:
-        description: Sign artifacts and create a draft prerelease after package checks
+        description: Sign artifacts and create a draft release after package checks
         type: boolean
         default: false
+      prerelease:
+        description: Mark as prerelease (false publishes a normal release as Latest)
+        type: boolean
+        default: true
       publish_release:
         description: Publish the signed draft after downloaded assets verify (repository visibility is unchanged)
         type: boolean
@@ -74,6 +78,8 @@ jobs:
       contents: write
     env:
       PACKAGE_VERSION: ${{ inputs.version }}
+      RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+      RELEASE_LATEST: ${{ !inputs.prerelease }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -118,6 +124,14 @@ jobs:
 
           All four archives are project-signed through an RSA-3072/SHA-256 checksum manifest. The installer verifies the pinned project key before extraction. These are not Apple Developer ID signed or notarized builds.
 
+          **Download and install the CLI** (Python 3.9+, OpenSSL, authenticated GitHub CLI):
+
+          ```sh
+          gh api 'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref={version}' -H 'Accept: application/vnd.github.raw+json' | python3 - --version {version}
+          ```
+
+          This short command trusts the versioned source on GitHub, selects your platform and verifies the project signature before installing into `~/.local/bin`. The source-commit-pinned alternative and complete setup are below. Add `--force` explicitly when replacing an existing CLI.
+
           **Install and start the app.** Requires Git, OpenSSL, Python 3.12+ with venv, authenticated GitHub CLI with repository access, and a running Docker daemon. Choose a new setup directory:
 
           ```sh
@@ -141,7 +155,7 @@ jobs:
           Source commit: `{sha}`.
           ''')
           PY
-          gh release create "$PACKAGE_VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION" --notes-file release-notes.md
+          gh release create "$PACKAGE_VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease="$RELEASE_PRERELEASE" --title "agent-harness $PACKAGE_VERSION" --notes-file release-notes.md
       - name: Download and authenticate uploaded assets before publication
         env:
           GH_TOKEN: ${{ github.token }}
@@ -158,8 +172,8 @@ jobs:
           assert metadata['commit'] == os.environ['GITHUB_SHA'], 'Uploaded release source does not match this run'
           print('All uploaded artifacts authenticated against the committed public key.')
           PY
-      - name: Publish verified prerelease
+      - name: Publish verified release
         if: inputs.publish_release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$PACKAGE_VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+        run: gh release edit "$PACKAGE_VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease="$RELEASE_PRERELEASE" --latest="$RELEASE_LATEST"

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.0
+
+First normal release, with the CLI and embedded local web app from rc.6, project-signed archives for four macOS/Linux targets, and a short installation command. The release workflow now supports normal releases marked Latest as well as prereleases. Existing rc.6 downloads remain unchanged.
+
+Installation still verifies the pinned project key, signed manifest, archive hash and source metadata before extraction. This is an early local, single-user release; the [documented feature limits](README.md#current-boundaries) still apply.
+
 ## v0.1.0-rc.6 — September 6, 2026
 
 [Published prerelease](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6) with project-signed native archives for macOS/Linux, amd64/arm64. [Install and start the app](docs/getting-started.md#complete-local-setup).
