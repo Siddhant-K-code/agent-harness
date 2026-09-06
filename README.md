@@ -12,7 +12,22 @@ A local CLI and project chat for coding work with a budget, an independent verif
 
 ## Install and open the app
 
-**Use source setup today.** The signed `v0.1.0-rc.6` binaries have not been published; rc.1–rc.5 are older unsigned drafts. This macOS command uses [Homebrew](https://brew.sh/) and repository access to build a pinned source revision, prepare Docker and AgentTrace, configure local BYOK, and start the web app:
+**Binary downloads — v0.1.0-rc.5 (unsigned draft)**
+
+| Your computer | Download |
+| --- | --- |
+| macOS · Apple Silicon | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_darwin_arm64.tar.gz) |
+| macOS · Intel | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_darwin_amd64.tar.gz) |
+| Linux · Intel/AMD 64-bit | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_linux_amd64.tar.gz) |
+| Linux · ARM64 | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_linux_arm64.tar.gz) |
+
+[SHA-256 checksums](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/checksums.txt) · [Draft installation instructions and release notes](https://github.com/Siddhant-K-code/agent-harness/releases/tag/untagged-8aa7d8190d6cdd424351) · [All releases](https://github.com/Siddhant-K-code/agent-harness/releases)
+
+Sign in to GitHub with collaborator access to use these draft links. Verify the archive against `checksums.txt` before extracting and running its `install.sh`. These are older, unsigned binaries; draft URLs can change if the draft is edited. They do not include the newer package-license and signing changes.
+
+**Current source:** [Download ZIP](https://github.com/Siddhant-K-code/agent-harness/archive/ae422133ae5f081ad35e356f6d94a83077f0b0c2.zip) · [Browse source](https://github.com/Siddhant-K-code/agent-harness/tree/ae422133ae5f081ad35e356f6d94a83077f0b0c2) · [Minimal installation / Linux](docs/getting-started.md#install-from-source). The ZIP contains source code, not an app binary. With Go 1.25+, Make and Git installed, build it from the extracted directory using `make install COMMIT=ae422133ae5f081ad35e356f6d94a83077f0b0c2`; the explicit commit supplies metadata missing from a ZIP. The full setup below uses a Git clone.
+
+**Complete source setup (macOS).** Signed `v0.1.0-rc.6` binaries are not published yet. This command uses [Homebrew](https://brew.sh/) and repository access to build the current pinned source revision, prepare Docker and AgentTrace, configure local BYOK, and start the web app:
 
 ```sh
 (
