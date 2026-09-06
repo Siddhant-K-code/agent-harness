@@ -1,10 +1,10 @@
 name: Package preview
 on:
   pull_request:
-    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'DISTRIBUTION.md', 'LICENSE', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'LICENSE', '.github/workflows/package.yml']
   push:
     branches: [main]
-    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'DISTRIBUTION.md', 'LICENSE', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'LICENSE', '.github/workflows/package.yml']
   workflow_dispatch:
     inputs:
       version:
@@ -78,4 +78,4 @@ jobs:
         run: |
           cd dist
           sha256sum *.tar.gz > checksums.txt
-          gh release create "$PACKAGE_VERSION" *.tar.gz checksums.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION — private preview" --notes-file ../docs/preview-release.md
+          gh release create "$PACKAGE_VERSION" *.tar.gz checksums.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION — private preview" --generate-notes

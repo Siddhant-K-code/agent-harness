@@ -8,7 +8,7 @@
 A local CLI and project chat for coding work with a budget, an independent verifier, and a record of what happened. Bring your own OpenAI key. Run questions against committed project files, then turn the conversation into an isolated coding run. Your source checkout stays unchanged.
 
 
-[Get started](docs/getting-started.md) · [Chat & integrations](docs/ui-and-integrations.md) · [How it works](docs/architecture.md) · [Roadmap](docs/roadmap.md)
+[Get started](docs/getting-started.md) · [Chat & integrations](docs/ui-and-integrations.md) · [How it works](docs/architecture.md)
 
 ## See it work
 
@@ -121,7 +121,7 @@ This is a local, single-user preview. Ask mode reads a pinned Git commit; it doe
 
 Coding runs retain private repository content and tool output in their evidence. Exports are manual. Model cost is an estimate from configured prices and reported usage, separate from infrastructure and external-service charges. Docker shares a kernel and is not a multi-tenant security boundary.
 
-Token-by-token chat streaming, attachments, UI task/verifier creation, reviewed GitHub writes, MCP OAuth/stdio, automatic crash resume, distributed workers and disk quotas remain pending. Distill, ContextLab, ThinkBudget and LLMTraceFX adapters are planned. OpenAI is the implemented model provider. [Full roadmap](docs/roadmap.md).
+Token-by-token chat streaming, attachments, UI task/verifier creation, reviewed GitHub writes, MCP OAuth/stdio, automatic crash resume, distributed workers and disk quotas are not supported in this version. OpenAI is the implemented model provider.
 
 ## Development
 

@@ -38,7 +38,7 @@ The sidecar reports what capture missed. A shell command is not a filesystem aud
 HARNESS_AGENTTRACE_PYTHON="$PWD/.harness/agenttrace-venv/bin/python" go test -race ./internal/trace/agenttrace
 ```
 
-Tests exercise the real pinned native store and renderer, duplicate concurrent exports, secret canaries, corruption, and abrupt failure before publication. No simulated model/executor is used by this integration. Incremental outbox delivery remains separate future work.
+Tests exercise the real pinned native store and renderer, duplicate concurrent exports, secret canaries, corruption, and abrupt failure before publication. No simulated model/executor is used by this integration. Exports are batch-only; incremental outbox delivery is not implemented.
 
 ## Remote AgentCore evidence
 
