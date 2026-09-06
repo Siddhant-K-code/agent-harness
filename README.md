@@ -33,19 +33,37 @@ The useful output is a patch with evidence you can inspect. The controller owns 
 
 The improvement loop proposes skill revisions and tests them before activation. It does not establish general self-improving performance. See the [learning mechanism and live evidence](docs/compaction-and-learning.md).
 
-## Try it locally
+## Use the web app
 
-**Private preview:** repository access is required. [Install a checksummed macOS/Linux archive or build from source](docs/getting-started.md). You need Git and an OpenAI API key; coding runs also need Docker. The UI is embedded in the binary—no frontend installation or harness account.
+The web app runs on **your computer**: `harness serve` starts the local server and you use it in your browser. There is no hosted sign-up URL or shared team server in this preview. The UI ships inside the CLI binary.
+
+| You need | When |
+| --- | --- |
+| macOS or Linux, Git, and a browser | Required; native archives cover Intel/AMD and ARM. Windows binaries are not shipped. |
+| The installed `harness` CLI | Required. [Install a checksummed archive](docs/getting-started.md#install-a-binary) or [build from source](docs/getting-started.md#install-from-source). |
+| Your OpenAI API key, API billing/model access, and internet access | To submit questions or coding tasks. Inference runs through OpenAI. |
+| A running Docker daemon and the task's image | For local coding runs. Read-only project questions do not need Docker. |
+
+**Private preview:** users need repository access; draft downloads require sufficient collaborator permissions. There is no anonymous public installer yet. Node, npm, Go, Python and AWS are not required to use an installed binary's core web app. Go is needed only to build from source; Python, `gh`, MCP and AWS are optional integrations.
+
+After installing the CLI:
 
 ```sh
 harness auth login
 harness init harness-demo
 cd harness-demo
-docker pull node:22-alpine
 harness serve --task harness.task.json
 ```
 
-Open the private local link printed by `serve`. Ask a question in **Chat**, or describe a change and choose **Run task…**. Review the goal, model, skills and budget before starting. The generated demo permits up to **$0.50 estimated model spend per coding run**; the UI can lower that ceiling. Setup is unpaid. Submitting a question or starting a run makes real API requests.
+Keep the terminal running and open the **complete private link** it prints, including its `#token=…` fragment. The default address is `http://127.0.0.1:8765/`; the bare address alone does not authenticate a new browser tab. This access token is separate from your OpenAI key.
+
+1. In **Chat**, select the demo project and start a conversation. Try: “Read tags.js and explain the normalization bug, with source references.” **Model & budget** controls the question's model, context, output and spending cap.
+2. For a coding task, start Docker and run `docker pull node:22-alpine` in another terminal. In Chat, describe the fix and choose **Run task…**, or use **Use answer as a task…**. Review the goal, model, skills and budget, then select **Start paid run**.
+3. Follow the run link to inspect its verifier result, cost and patch. A passing run produces a patch for review; it does not apply it to your checkout or open a GitHub PR.
+
+Setup is unpaid. **Ask project** and **Start paid run** make real API requests. The generated demo caps each question or coding run at **$0.50 estimated model spend**; the UI can lower that ceiling. These are per-operation limits, not an account-wide budget.
+
+Ctrl-C stops the server and cancels work it owns. To return later, run the same `serve` command from `harness-demo` and open the newly printed link; history and artifacts remain in `.harness/`. Port busy? Add `--port 0`. [Complete browser workflow, project setup and troubleshooting](docs/ui-and-integrations.md#open-the-dashboard).
 
 `auth login` uses hidden input and an owner-only local key file. You can instead supply `OPENAI_API_KEY` through your secret manager. Keys never pass through the browser or upload to GitHub during setup. [BYOK storage and precedence](docs/getting-started.md#bring-your-own-key).
 
@@ -76,7 +94,7 @@ harness doctor
 harness serve --task harness.task.json
 ```
 
-Only committed files are used. Prepare dependencies in the image because agent commands have no network. Choose checks that actually establish your task's requirements. A passing verifier means those checks passed, not that arbitrary generated code is correct. [Task setup](docs/getting-started.md).
+The repository, prepared image and verifier must already exist for coding. The current UI uses prepared task files; it cannot yet open an arbitrary folder or create the verifier for you. Only committed files are used. Prepare dependencies in the image because agent commands have no network. Choose checks that actually establish your task's requirements. A passing verifier means those checks passed, not that arbitrary generated code is correct. [Task setup](docs/getting-started.md#your-own-task).
 
 </details>
 

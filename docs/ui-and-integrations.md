@@ -4,6 +4,8 @@ The preview includes a local project chat and dashboard, a versioned system prom
 
 ## Open the dashboard
 
+First [install the CLI](getting-started.md#install-a-binary) on macOS or Linux, then run `harness auth login` to configure your OpenAI key locally. New users can run `harness init harness-demo` and `cd harness-demo` to prepare the bundled project. The core browser app needs Git and the installed binary; OpenAI API access is needed to ask questions. Docker is needed only when starting local coding tasks. There is no hosted account or public app URL in this preview.
+
 From a prepared task directory:
 
 ```sh
@@ -11,6 +13,28 @@ harness serve --task harness.task.json
 ```
 
 Open the private access link printed by the command. It listens on `127.0.0.1:8765`; use `--port 0` for an available port. Use `--state-dir PATH` to inspect an existing state directory and `--api-key-file PATH` for an explicit local key. Repeat `--task` to make several prepared tasks available. Without `--task`, the dashboard can inspect existing runs and chat history and cancel runs, but cannot start new paid work.
+
+Keep this terminal running while using the browser. Copy the **whole** link, including `#token=…`; entering the bare host/port in a new tab is not enough. Each server restart creates a new link. Use the same state directory to keep your history, and open the fresh link after restarting. Closing a browser tab does not stop a running question or coding task.
+
+For several prepared projects in one workspace:
+
+```sh
+harness serve --state-dir ./workspace-state \
+  --task /path/to/project-a/harness.task.json \
+  --task /path/to/project-b/harness.task.json
+```
+
+The default state directory is `.harness` relative to the terminal's current directory; task repository/verifier paths resolve relative to their task file. Keep `--state-dir` consistent with other harness commands to use the same runs, skills and integration policy. Tasks and their ceilings are loaded at server startup. Restart after changing a task file, then create a new conversation for that configuration. [Prepare your own repository, image and verifier](getting-started.md#your-own-task); the UI cannot yet create a task or select an arbitrary project folder.
+
+| In the browser | What to do |
+| --- | --- |
+| Chat | Choose a project, start a conversation, ask a code question, or review a task handoff. |
+| Runs | Follow progress, inspect the independent verifier, review/download the patch and inspect recorded usage. |
+| Skills | Inspect imported skills and their active versions; use the CLI to import, evaluate or promote them. |
+| Connections | Inspect selected MCP/GitHub capabilities; configure them with the CLI on the host. |
+| System prompt | Inspect the coding controller's prompt/tool contract. |
+
+Create projects/verifiers, log in, configure integrations, and manage skills through the CLI. See [troubleshooting](getting-started.md#troubleshooting) for missing credentials, disabled actions, busy ports and lost history.
 
 The dashboard shows recent runs, patches/downloads, verifier outcomes, model usage, compactions, journal events, pinned skills and prompt artifacts. Model responses are reduced to status and usage before being sent to the browser; opaque reasoning is not displayed. The Skills page lists active versions, provenance, expiry and rollback history counts. Connections shows configured capabilities, not a connectivity claim.
 
@@ -26,7 +50,7 @@ The link carries a random process-lifetime access token in the URL fragment, not
 
 - **Ask project** calls the real OpenAI Responses API using the configured key. It receives the project/task goal, the current question, and up to six recent completed question/answer pairs. It can list, read numbered lines, and search regular tracked files. Answers include model-generated path/line references; expandable source reads let you check the evidence.
 - **Run task…** opens the existing coding form with your message as its goal. **Use answer as a task…** includes the question and proposed answer as editable context. Review the goal, model, spending cap and selected skills, then click **Start paid run**. The project, pinned commit, verifier, executor and selected integrations remain those of the prepared task. The conversation links to the real run's status, verifier results and patch. If a new task requires different checks, prepare a matching task/verifier with the CLI first.
-- **Stop** cancels the question or coding run owned by this server. Navigating away or refreshing does not cancel it. The source project stays unchanged; a coding run produces a separate patch. Questions continue to refer to the pinned commit, not that patch. Start a new conversation after applying and committing changes to discuss a newer ref.
+- **Stop** cancels the question or coding run owned by this server. Navigating away or refreshing does not cancel it. The source project stays unchanged; a coding run produces a separate patch. Questions continue to refer to the pinned commit, not that patch. To discuss newer committed changes, first prepare/update the task to use the newer ref, restart the server with that task, and create a new conversation. Tasks initialized with `--repo` pin a commit during setup, so starting a conversation alone does not advance that ref.
 
 Q&A reads Git objects through fixed `rev-parse`, `ls-tree` and `cat-file` argument lists. It does not check out or execute repository code, invoke filters/hooks, run a model-supplied shell command, read host credentials, follow symlinks, or expose untracked/dirty files. It needs Git and API access, but no Docker daemon or AWS runtime. Files are limited to 256 KiB of UTF-8 text; reads to 200 lines/32 KiB; searches to 200 files/8 MiB/50 matches. Large files, binary files, symlinks, submodules and uncommitted changes are outside the current reader. These are separate read-only tools; the coding tools below still use their isolated executor.
 

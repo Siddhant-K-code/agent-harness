@@ -1,6 +1,8 @@
 # Install and run agent-harness
 
-This is a private preview. Binary archives are built for macOS and Linux, on Intel/AMD (`amd64`) and ARM (`arm64`). Git and Docker are required for the local demo; Go and Python are not required to run the core CLI. Python is only needed for optional native AgentTrace export.
+This is a private preview. Binary archives are built for macOS and Linux, on Intel/AMD (`amd64`) and ARM (`arm64`); Windows binaries are not shipped. Git and a browser are enough to open the installed app and prepare the bundled project. Questions require an OpenAI API key, model access, API billing and internet access. Local coding tasks additionally require Docker. Go and Python are not required to run the core CLI or web app. Python is only needed for optional native AgentTrace export.
+
+The web app runs on your machine through `harness serve`. There is no hosted sign-up URL, shared team server, or separate frontend installation.
 
 ## Install a binary
 
@@ -38,22 +40,35 @@ harness version
 
 `make install` installs to `~/.local/bin`; override with `make install PREFIX=/your/prefix`. Add that prefix's `bin` directory to PATH. Source builds report `dev` and their commit. No image pull, model call, credential upload, or cloud deployment happens during installation.
 
-## First task
+## First task in the web app
 
 ```sh
 harness init
 cd harness-demo
 harness auth login
-docker pull node:22-alpine
-harness doctor
-harness run
+harness serve --task harness.task.json
 ```
 
-The default directory must not already exist. Choose another with `harness init my-demo`. Setup embeds a real buggy JavaScript fixture and an independent verifier. It does not use a simulated model or executor. The first `run` calls GPT-5.4 and permits at most $0.50 of estimated model usage for that run. Change the budget with `harness init --max-usd 1 my-demo`, or edit `limits.max_usd` in `harness.task.json`.
+The default directory must not already exist. Choose another with `harness init my-demo`. Setup embeds a real buggy JavaScript fixture and an independent verifier. It does not use a simulated model or executor. Keep the server running and open its complete private link, including `#token=…`, in your browser. A bare `http://127.0.0.1:8765/` URL does not authenticate a new tab.
+
+In **Chat**, choose the project and start a conversation. Try “Read tags.js and explain the normalization bug, with source references.” Review **Model & budget**, then choose **Ask project**. This makes a real GPT-5.4 request and may retrieve committed project files; no Docker daemon is needed for questions.
+
+For a coding task, start your Docker daemon. In another terminal, from `harness-demo`:
+
+```sh
+docker pull node:22-alpine
+harness doctor
+```
+
+Use **Run task…** in Chat to describe the fix, or **Use answer as a task…** to carry over the discussion. Review the form and click **Start paid run**. Follow the linked run to review verification, usage and the patch. The generated demo permits at most **$0.50 of estimated model usage per question or coding run**. Each operation has a separate cap. Change the task ceiling with `harness init --max-usd 1 my-demo`, or edit `limits.max_usd` in `harness.task.json` before starting the server. The UI can lower that ceiling.
+
+For terminal-only coding, run `harness run` from the task directory instead of submitting through the UI. This is also a real, billable model run.
 
 `doctor` checks the selected credential source, priced model, Git commit, verifier file, Docker image/backend, and writable state directory. `--json` produces structured diagnostics. It does not validate the key against OpenAI, execute the verifier, or prove dependencies are complete. A valid key with access to the selected model and API billing is required for `run`.
 
-Successful output includes `run_id`, `verified`, `cleanup_confirmed`, `estimated_usd_uncached`, and `patch`. Open the patch path to review the changes. Reports and events remain under `.harness`; your source checkout is unchanged. A failed verifier can trigger a bounded repair attempt. Failure, cancellation, exhausted budgets, or unconfirmed cleanup exit nonzero.
+Successful CLI output includes `run_id`, `verified`, `cleanup_confirmed`, `estimated_usd_uncached`, and `patch`. Open the patch path to review the changes, or inspect it on the UI's Runs page. Reports, conversations and events remain under `.harness`; your source checkout is unchanged. A failed verifier can trigger a bounded repair attempt. Failure, cancellation, exhausted budgets, or unconfirmed cleanup exit nonzero in the CLI.
+
+Ctrl-C stops the server and cancels its active work. Restart with the same task and state directory to retain history, then open the newly printed link. Closing the browser tab alone does not stop the server or cancel work. [Browser controls, multiple projects and recovery](ui-and-integrations.md).
 
 ## Local dashboard and integrations
 
@@ -180,6 +195,13 @@ This installs the pinned AgentTrace dependency into the task's `.harness/agenttr
 | Symptom | Next step |
 | --- | --- |
 | `harness: command not found` | Add the installation's bin directory to PATH, or invoke its absolute path. |
+| Release download is unavailable | Confirm your authenticated GitHub account has repository and draft-release access. The preview is private. |
+| Browser cannot connect | Keep `harness serve` running on the same computer as the browser; open its printed URL. |
+| Browser says unauthorized after restart | Open the newly printed complete access link, including `#token=…`. The token changes with each server process. |
+| Port 8765 is busy | Start with `harness serve --task harness.task.json --port 0` and use the chosen port in its output. |
+| Chat/task actions are disabled | Pass a prepared `--task`, check `harness auth status`, and ensure another UI operation is not active. Without a task, the server is for inspection/cancellation only. |
+| History appears empty | Restart from the same task directory, or pass the original `--state-dir PATH`; a different directory selects different local state. |
+| Task changed or is no longer configured | Restart with the intended task file and create a new conversation. Old history remains readable. |
 | Docker daemon unavailable | Start Docker Desktop, Colima, or your Docker daemon; check `docker info`. |
 | Image unavailable | Pull/build the exact image named in the task before running. |
 | Saved key is not being used | Check `harness auth status`; environment and legacy task files take precedence. |
