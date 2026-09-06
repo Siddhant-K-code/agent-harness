@@ -66,6 +66,10 @@ function renderChat(root) {
     create.disabled = !data.tasks?.length;
     sidebar.append(
       field("Project for new chat", project),
+      button("+ Add project", "quiet", () => {
+        view = "projects";
+        render();
+      }),
       create,
       el("p", "eyebrow section-gap", "CONVERSATIONS"),
     );
@@ -234,7 +238,7 @@ function updateChatControls() {
             (chatData
               ? "commit " + short(t.ref)
               : "commit pinned when the conversation starts")
-        : "Start harness serve with --task harness.task.json to enable project chat.",
+        : "Add a project in Projects, or start harness serve with --task harness.task.json.",
     ),
   );
   if (chatData && !allowed)

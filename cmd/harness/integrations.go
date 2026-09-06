@@ -38,7 +38,7 @@ func serveCommand(args []string) error {
 	key := f.String("api-key-file", "", "private OpenAI key file")
 	port := f.Int("port", 8765, "loopback port; 0 chooses a free port")
 	var files many
-	f.Var(&files, "task", "prepared task available in the UI (repeatable; otherwise view-only)")
+	f.Var(&files, "task", "prepared task available in the UI (repeatable; projects can also be added in the browser)")
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil

@@ -86,7 +86,7 @@ func Resolve(explicit, stateDir string) (Key, error) {
 	return Key{Value: value, Source: "user_config", Path: path}, err
 }
 
-// Save writes a private, plaintext file atomically. Only auth login calls it.
+// Save writes a private, plaintext file atomically. CLI login and authenticated local web setup call it.
 func Save(path, value string, replace bool) error {
 	value, err := Validate(value)
 	if err != nil {

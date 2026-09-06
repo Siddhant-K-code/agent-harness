@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Check baseline budget and interruption accounting
+        run: python3 scripts/test-real-tasks.py
       - run: sh integrations/agenttrace/setup.sh
       - run: docker pull node:22-alpine
       - name: Build and test Linux command isolation
@@ -28,3 +30,25 @@ jobs:
           HARNESS_AGENTCORE_DOCKER_TEST: '1'
       - run: go vet ./...
       - run: go build ./cmd/harness
+  real-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: docker pull python:3.12-slim
+      - name: Verify buggy bases fail and upstream fixes pass
+        run: python3 scripts/prepare-real-tasks.py --output .harness/corpus-validation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-corpus-validation
+          path: |
+            .harness/corpus-validation/*.log
+            .harness/corpus-validation/prepared.json
+          if-no-files-found: ignore
+          include-hidden-files: true

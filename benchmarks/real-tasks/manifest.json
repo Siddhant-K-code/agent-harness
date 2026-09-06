@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "name": "Five historical repository regressions",
+  "cases": [
+    {
+      "id": "trace-invalid-regex",
+      "repository": "Siddhant-K-code/agent-trace",
+      "base": "a6822c3fb0e280951cb627574e240f8d66562cec",
+      "reference": "389aaec5230f540ef96ddf11909a8814d3d2b639",
+      "verifier": "invalid_regex.py",
+      "role": "regression",
+      "goal": "Make the eval regex scorer handle invalid regular expressions as a failed ScoreResult instead of raising. Retain the caller's threshold and explain the invalid pattern. Preserve valid matches, misses, event-type filtering and unknown-event handling. Add regression tests."
+    },
+    {
+      "id": "trace-report-counts",
+      "repository": "Siddhant-K-code/agent-trace",
+      "base": "a6822c3fb0e280951cb627574e240f8d66562cec",
+      "reference": "389aaec5230f540ef96ddf11909a8814d3d2b639",
+      "verifier": "report_counts.py",
+      "role": "regression",
+      "goal": "Make EvalReport passed/failed counts derive from its current results. Construct reports with session_id, results and config, without separately supplied counts. Appending, replacing or removing results must immediately update counts and overall_passed. Keep run_eval and JSON report formatting working and add regression tests."
+    },
+    {
+      "id": "trace-cost-alert",
+      "repository": "Siddhant-K-code/agent-trace",
+      "base": "46c0cf15c19b6e75e475b747b1c508e93b1d957d",
+      "reference": "88e4e4230620efb7aa81be05a7ac6bcc084dfe6a",
+      "verifier": "cost_alert.py",
+      "role": "regression",
+      "goal": "Ensure the live watcher's CostWatcher emits a cost-limit violation only once per WatchState. Additional cost increases, including crossing whole-dollar boundaries, must not re-alert. A new WatchState should alert independently and retry/duration watchers must keep working. Add regression tests."
+    },
+    {
+      "id": "trace-hook-workspace",
+      "repository": "Siddhant-K-code/agent-trace",
+      "base": "6c48227ac7216c65d603088ee2aebade6148b83f",
+      "reference": "c0d87dbe79a1588a578c400fa89ea4a7b23124d6",
+      "verifier": "hook_workspace.py",
+      "role": "holdout",
+      "goal": "Store Claude and Copilot hook traces beneath an existing absolute directory supplied by payload cwd, even when the hook process runs from an installed plugin directory. Explicit AGENT_TRACE_DIR must retain precedence. Missing, relative, non-directory or non-string cwd must fall back safely to process cwd. The selected directory must not leak into a later hook invocation. Add regression tests."
+    },
+    {
+      "id": "llm-portable-verifier",
+      "repository": "Siddhant-K-code/LLMTraceFX",
+      "base": "abae5a321db896f4eca6bb0355f59021f2cf86a0",
+      "reference": "4047370bea3fe9163bb3de7d988f11924a10f430",
+      "verifier": "portable_verifier.py",
+      "role": "regression",
+      "goal": "Fix generated portable cache-audit verifier package discovery for evidence bundles nested below their source repository. Skip ancestor candidates with no regular llmtracefx package, including a symlinked package, and continue searching. Preserve digest matching, explicit --package-root behavior, source snapshotting and failure when no matching source exists. Add regression tests."
+    }
+  ]
+}

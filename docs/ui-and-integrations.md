@@ -1,5 +1,7 @@
 # Local UI and connected tools
 
+Project setup in the browser and `harness publish` require a development source build newer than v0.1.0. They are not included in the current v0.1.0 signed archives.
+
 The preview includes a local project chat and dashboard, a versioned system prompt, typed repository tools, a Streamable HTTP MCP client, and a GitHub credential broker. Everything uses the real controller and run database. UI assets are embedded in the binary; Node, a frontend build, and a hosted account are not required to use it.
 
 ## Open the dashboard
@@ -12,7 +14,7 @@ From a prepared task directory:
 harness serve --task harness.task.json
 ```
 
-Open the private access link printed by the command. It listens on `127.0.0.1:8765`; use `--port 0` for an available port. Use `--state-dir PATH` to inspect an existing state directory and `--api-key-file PATH` for an explicit local key. Repeat `--task` to make several prepared tasks available. Without `--task`, the dashboard can inspect existing runs and chat history and cancel runs, but cannot start new paid work.
+Open the private access link printed by the command. It listens on `127.0.0.1:8765`; use `--port 0` for an available port. Use `--state-dir PATH` to inspect an existing state directory and `--api-key-file PATH` for an explicit local key. Repeat `--task` to make several prepared tasks available, or start with just `harness serve` and add a project in **Projects**.
 
 Keep this terminal running while using the browser. Copy the **whole** link, including `#token=…`; entering the bare host/port in a new tab is not enough. Each server restart creates a new link. Use the same state directory to keep your history, and open the fresh link after restarting. Closing a browser tab does not stop a running question or coding task.
 
@@ -24,17 +26,22 @@ harness serve --state-dir ./workspace-state \
   --task /path/to/project-b/harness.task.json
 ```
 
-The default state directory is `.harness` relative to the terminal's current directory; task repository/verifier paths resolve relative to their task file. Keep `--state-dir` consistent with other harness commands to use the same runs, skills and integration policy. Tasks and their ceilings are loaded at server startup. Restart after changing a task file, then create a new conversation for that configuration. [Prepare your own repository, image and verifier](getting-started.md#your-own-task); the UI cannot yet create a task or select an arbitrary project folder.
+The default state directory is `.harness` relative to the terminal's current directory; task repository/verifier paths resolve relative to their task file. Keep `--state-dir` consistent with other harness commands to use the same runs, skills and integration policy. CLI task files are loaded at startup; restart after editing one. Browser-created projects become available immediately and reload from the same state directory after restart.
+
+In **Projects**, enter an absolute local Git repository path and a revision, then **Inspect repository**. Review the pinned commit and any excluded uncommitted changes. Add the goal, an already prepared Docker image, an independent shell verification script, model, context/output limits and per-run spending cap. **Save project** writes a private task and verifier outside the source checkout, then performs the same unpaid readiness checks as `harness doctor`. It never pulls an image, executes the verifier, or calls the model. There are at most 50 saved projects; create a new entry for a different revision or verifier. Project editing/deletion and GitHub clone UI are not yet included; use `harness github clone` on the host for a new local checkout. Docker is the browser setup backend; existing AgentCore tasks can still be supplied with `--task`.
+
+The optional initial API-key form saves the standard owner-only user-config file. It does not replace existing keys or override environment/explicit task credentials. Use the CLI for replacement or logout. The browser clears the password input after submission and never stores it in browser storage; the authenticated loopback server receives it once. Readiness checks validate presence, not API billing or model access.
 
 | In the browser | What to do |
 | --- | --- |
+| Projects | Add a repository, configure its verifier/model/budget, save an initial key and check readiness. |
 | Chat | Choose a project, start a conversation, ask a code question, or review a task handoff. |
-| Runs | Follow progress, inspect the independent verifier, review/download the patch and inspect recorded usage. |
+| Runs | Follow progress, inspect the verifier, review/download the patch, and approve GitHub draft-PR delivery. |
 | Skills | Inspect imported skills and their active versions; use the CLI to import, evaluate or promote them. |
 | Connections | Inspect selected MCP/GitHub capabilities; configure them with the CLI on the host. |
 | System prompt | Inspect the coding controller's prompt/tool contract. |
 
-Create projects/verifiers, log in, configure integrations, and manage skills through the CLI. See [troubleshooting](getting-started.md#troubleshooting) for missing credentials, disabled actions, busy ports and lost history.
+Configure integrations and manage skills through the CLI. See [troubleshooting](getting-started.md#troubleshooting) for missing credentials, disabled actions, busy ports and lost history.
 
 The dashboard shows recent runs, patches/downloads, verifier outcomes, model usage, compactions, journal events, pinned skills and prompt artifacts. Model responses are reduced to status and usage before being sent to the browser; opaque reasoning is not displayed. The Skills page lists active versions, provenance, expiry and rollback history counts. Connections shows configured capabilities, not a connectivity claim.
 
@@ -42,7 +49,7 @@ New run lets you choose a prepared task, edit its goal, choose a supported model
 
 Ctrl-C cancels runs owned by this server and waits for their cleanup. A killed server requires `harness reconcile RUN_ID`, as with a killed CLI worker. The dashboard is a single-user local tool: it does not implement remote multi-user access, task queues or automatic recovery.
 
-The link carries a random process-lifetime access token in the URL fragment, not in a query or server log. The UI stores it for the current browser tab and sends an authorization header to the same-origin API. Host/origin checks, no CORS, a restrictive content policy, and fixed artifact names protect the local surface. Do not expose this listener with a public tunnel. OpenAI and GitHub credentials never pass through the browser.
+The link carries a random process-lifetime access token in the URL fragment, not in a query or server log. The UI stores it for the current browser tab and sends an authorization header to the same-origin API. Host/origin checks, no CORS, a restrictive content policy, and fixed artifact names protect the local surface. Do not expose this listener with a public tunnel. GitHub credentials remain in the host Git/gh processes. The optional OpenAI setup form sends a key to the loopback server; no endpoint returns saved key values.
 
 ## Project chat
 
@@ -60,7 +67,7 @@ Conversations are private, owner-only JSON under `<state-dir>/chats/`, capped at
 
 Conversation history and source excerpts stay on this machine; the question, selected history and retrieved content are sent to OpenAI as needed. Raw provider responses and opaque reasoning are not persisted in chat files or sent to the UI. Within a question, opaque continuation items remain in memory for the tool loop. The implementation manually supplies context with `store:false`, following the [Responses conversation-state guide](https://developers.openai.com/api/docs/guides/conversation-state). This is not a claim about provider retention policies.
 
-Chat currently shows activity and the final answer, rather than streaming individual text tokens. Ask mode does not receive MCP, GitHub or skill tools. Task handoffs retain the prepared task's integrations and selected skills. Q&A usage is shown per message and is separate from the Runs page's cost total; chat conversations do not yet have native AgentTrace exports. Linked coding runs retain their existing trace exports. Attachments, cross-project search, inline patch approval, UI task/verifier creation and chat-managed skill promotion are not supported in this version.
+Chat currently shows activity and the final answer, rather than streaming individual text tokens. Ask mode does not receive MCP, GitHub or skill tools. Task handoffs retain the prepared task's integrations and selected skills. Q&A usage is shown per message and is separate from the Runs page's cost total; chat conversations do not yet have native AgentTrace exports. Linked coding runs retain their existing trace exports. Attachments, cross-project search and chat-managed skill promotion are not supported. Patch approval is available on the linked completed run.
 
 ## System prompt and native tools
 
@@ -104,7 +111,24 @@ harness integrations select --github-repo OWNER/REPO
 harness integrations check
 ```
 
-The model receives `github_read` only when a repository is selected. Supported resources are `issues`, `issue`, `pulls`, `pull`, `diff`, and `checks`; `number` is an issue/PR number, or `0` for lists. Routes and HTTP GET are chosen by the broker, not by arbitrary model-supplied URLs. Checks resolve the PR head inside the selected repository. Results are bounded; lists return the first page. Credentials and Git metadata never enter the sandbox. This version does not push branches, create PRs, post comments, merge, or integrate GitHub Apps/enterprise hosts.
+The model receives `github_read` only when a repository is selected. Supported resources are `issues`, `issue`, `pulls`, `pull`, `diff`, and `checks`; `number` is an issue/PR number, or `0` for lists. Routes and HTTP GET are chosen by the broker, not by arbitrary model-supplied URLs. Checks resolve the PR head inside the selected repository. Results are bounded; lists return the first page. Credentials and Git metadata never enter the sandbox. The model cannot publish branches, PRs, comments or merges.
+
+### Approve a verified patch for GitHub
+
+Open a completed run with confirmed cleanup, then **Review & create draft PR → Prepare preview**. The controller checks the source repository's GitHub origin, your host account and push permission, and verifies that the default branch still equals the tested base commit. It stages a local commit from the recorded patch. Review the diff, destination, branch and PR description before **Approve & create draft PR**. This creates `harness/RUN_ID` with a create-only Git lease and opens a draft PR; it never merges or updates your source checkout.
+
+The same flow is available through the CLI:
+
+```sh
+harness publish preview RUN_ID
+# Review the complete preview, including its patch and approval_hash.
+harness publish approve --approval-hash APPROVAL_HASH RUN_ID
+harness publish status RUN_ID
+```
+
+Add `--state-dir PATH` before the run ID when needed. Approval expires after 30 minutes and binds the actor, destination, base, patch/report hashes and exact commit. A changed base requires a new verified run. Older runs without `patch_sha256` cannot be published through this flow. Only the repository's default branch is supported as a PR base; forks and custom base branches are not yet supported.
+
+Interrupted delivery is recorded before each external action. Run `harness publish reconcile RUN_ID` or use **Reconcile GitHub status**. A matching remote branch or PR resolves a lost response without repeating creation. If the PR outcome remains unknown, reconciliation stays read-only and no second PR is posted. If only the branch was pushed, refresh its preview and approve the remaining PR action. A PR created while its base moves is explicitly marked as requiring verification again. External delivery never consumes OpenAI tokens.
 
 ## MCP
 

@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check credential and task setup behavior
-        run: go test -race ./cmd/harness ./internal/credentials ./internal/scaffold ./internal/model ./internal/skills ./internal/learning ./internal/evaluation ./internal/contextwindow ./internal/runner ./internal/chat ./internal/dashboard ./internal/workspace
+        run: go test -race ./cmd/harness ./internal/credentials ./internal/scaffold ./internal/model ./internal/skills ./internal/learning ./internal/evaluation ./internal/contextwindow ./internal/runner ./internal/chat ./internal/dashboard ./internal/delivery ./internal/workspace
       - name: Build archive and dependency notices
         run: sh scripts/package.sh "$PACKAGE_VERSION" "${{ matrix.os }}" "${{ matrix.arch }}"
       - name: Install and exercise the native archive (no model or AWS calls)

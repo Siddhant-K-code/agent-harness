@@ -38,6 +38,8 @@ Commands:
   prompt [--json]              Inspect the versioned system prompt and native tools
   integrations                Configure, select and check MCP/GitHub capabilities
   github status|clone|read     Use host GitHub credentials; no sandbox token copies
+  publish preview|approve     Review a verified patch, then create a GitHub draft PR
+  publish status|reconcile    Inspect or reconcile an interrupted GitHub delivery
   init [flags] [directory]     Create a demo or a task for your own repository
   models [--json]              List configured models and their capacity limits
   config show|set [flags]      Preview or save model, context and budget settings

@@ -48,6 +48,7 @@ type Server struct {
 	token, host string
 	ctx         context.Context
 	mu          sync.Mutex
+	projectMu   sync.Mutex
 	busy        bool
 	lastError   string
 	wg          sync.WaitGroup
@@ -82,6 +83,9 @@ func Serve(ctx context.Context, o Options, out io.Writer) error {
 		return err
 	}
 	s := &Server{options: o, db: db, chats: chats, token: hex.EncodeToString(token[:]), host: listener.Addr().String(), ctx: ctx}
+	if err := s.loadProjects(); err != nil {
+		return err
+	}
 	httpServer := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	fmt.Fprintf(out, "Local dashboard: http://%s/#token=%s\nKeep this local access link private. Ctrl-C stops the server and cancels runs it owns.\n", s.host, s.token)
 	done := make(chan struct{})
@@ -107,7 +111,13 @@ func Serve(ctx context.Context, o Options, out io.Writer) error {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/overview", s.overview)
+	mux.HandleFunc("POST /api/projects/inspect", s.inspectProject)
+	mux.HandleFunc("POST /api/projects", s.createProject)
+	mux.HandleFunc("POST /api/projects/check", s.checkProject)
+	mux.HandleFunc("POST /api/credentials", s.configureKey)
 	mux.HandleFunc("GET /api/runs/{id}", s.detail)
+	mux.HandleFunc("GET /api/runs/{id}/delivery", s.delivery)
+	mux.HandleFunc("POST /api/runs/{id}/delivery", s.delivery)
 	mux.HandleFunc("POST /api/runs", s.start)
 	mux.HandleFunc("POST /api/runs/{id}/cancel", s.cancel)
 	mux.HandleFunc("POST /api/chats", s.createChat)
@@ -117,7 +127,7 @@ func (s *Server) Handler() http.Handler {
 	sub, _ := fs.Sub(assets, "web")
 	static := http.FileServer(http.FS(sub))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/chat.js" && r.URL.Path != "/style.css" {
+		if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/chat.js" && r.URL.Path != "/projects.js" && r.URL.Path != "/delivery.js" && r.URL.Path != "/style.css" {
 			http.NotFound(w, r)
 			return
 		}
@@ -238,7 +248,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	send(w, map[string]any{"runs": items, "tasks": s.options.Tasks, "chats": chats, "models": model.Catalog(), "skills": versions, "integrations": c, "integration_error": integrationError, "key_present": keyErr == nil, "key_source": keySource, "prompt": prompt.Build("docker", tooling.Native()), "busy": busy, "last_error": lastError})
+	send(w, map[string]any{"runs": items, "tasks": s.tasks(), "chats": chats, "models": model.Catalog(), "skills": versions, "integrations": c, "integration_error": integrationError, "key_present": keyErr == nil, "key_source": keySource, "prompt": prompt.Build("docker", tooling.Native()), "busy": busy, "last_error": lastError})
 }
 func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -300,11 +310,12 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		fail(w, errors.New("invalid run request"))
 		return
 	}
-	if a.Task < 0 || a.Task >= len(s.options.Tasks) {
+	tasks := s.tasks()
+	if a.Task < 0 || a.Task >= len(tasks) {
 		fail(w, errors.New("select a configured task"))
 		return
 	}
-	base := s.options.Tasks[a.Task]
+	base := tasks[a.Task]
 	if a.Conversation != "" {
 		c, e := s.configuredChat(a.Conversation)
 		if e != nil {

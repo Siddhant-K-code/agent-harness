@@ -7,6 +7,8 @@
 
 A local CLI and project chat for coding work with a budget, an independent verifier, and a record of what happened. Bring your own OpenAI key. Run questions against committed project files, then turn the conversation into an isolated coding run. Your source checkout stays unchanged.
 
+**In development:** browser project setup and approved GitHub draft-PR delivery require a source build newer than v0.1.0. The signed v0.1.0 downloads below retain CLI-based project setup. [New workflow](docs/ui-and-integrations.md) · [Five real regression tasks](benchmarks/real-tasks/README.md).
+
 
 [Get started](docs/getting-started.md) · [Chat & integrations](docs/ui-and-integrations.md) · [How it works](docs/architecture.md) · [Changelog](CHANGELOG.md)
 
@@ -105,13 +107,13 @@ Keep the terminal running and open the **complete private link** it prints, incl
 
 1. In **Chat**, select the demo project and start a conversation. Try: “Read tags.js and explain the normalization bug, with source references.” **Model & budget** controls the question's model, context, output and spending cap.
 2. For a coding task, start Docker and run `docker pull node:22-alpine` in another terminal. In Chat, describe the fix and choose **Run task…**, or use **Use answer as a task…**. Review the goal, model, skills and budget, then select **Start paid run**.
-3. Follow the run link to inspect its verifier result, cost and patch. A passing run produces a patch for review; it does not apply it to your checkout or open a GitHub PR.
+3. Follow the run link to inspect its verifier result, cost and patch. In the development version, **Review & create draft PR** prepares an exact patch approval; publishing requires another explicit action. The source checkout stays unchanged.
 
 Setup is unpaid. **Ask project** and **Start paid run** make real API requests. The generated demo caps each question or coding run at **$0.50 estimated model spend**; the UI can lower that ceiling. These are per-operation limits, not an account-wide budget.
 
 Ctrl-C stops the server and cancels work it owns. To return later, run the same `serve` command from `harness-demo` and open the newly printed link; history and artifacts remain in `.harness/`. Port busy? Add `--port 0`. [Complete browser workflow, project setup and troubleshooting](docs/ui-and-integrations.md#open-the-dashboard).
 
-`auth login` uses hidden input and an owner-only local key file. You can instead supply `OPENAI_API_KEY` through your secret manager. Keys never pass through the browser or upload to GitHub during setup. [BYOK storage and precedence](docs/getting-started.md#bring-your-own-key).
+`auth login` uses hidden input and an owner-only local key file. You can instead supply `OPENAI_API_KEY` through your secret manager. The development version also accepts initial key setup in **Projects**, sending the key only to the authenticated loopback server for local storage. Keys are never returned by the API or uploaded to GitHub during setup. [BYOK storage and precedence](docs/getting-started.md#bring-your-own-key).
 
 Prefer the terminal?
 
@@ -140,7 +142,7 @@ harness doctor
 harness serve --task harness.task.json
 ```
 
-The repository, prepared image and verifier must already exist for coding. The current UI uses prepared task files; it cannot yet open an arbitrary folder or create the verifier for you. Only committed files are used. Prepare dependencies in the image because agent commands have no network. Choose checks that actually establish your task's requirements. A passing verifier means those checks passed, not that arbitrary generated code is correct. [Task setup](docs/getting-started.md#your-own-task).
+The repository and prepared image must already exist for coding. In the development version, **Projects** can inspect a local folder and save your verifier script, model, context and budget without restarting the server. v0.1.0 uses the CLI task setup above. Only committed files are used. Prepare dependencies in the image because agent commands have no network. Choose checks that actually establish your task's requirements. A passing verifier means those checks passed, not that arbitrary generated code is correct. [Task setup](docs/getting-started.md#your-own-task).
 
 </details>
 
