@@ -37,6 +37,8 @@ type Runner struct {
 	Store     *store.Store
 	Root, Key string
 	Progress  io.Writer
+	// Created links a caller's durable record before any model or tool dispatch.
+	Created func(runID string) error
 }
 type Report struct {
 	PromptVersion          string          `json:"prompt_version,omitempty"`
@@ -221,6 +223,11 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 			}
 		}
 	}()
+	if r.Created != nil {
+		if err = r.Created(created.ID); err != nil {
+			return report, err
+		}
+	}
 	w, err = workspace.Prepare(ctx, root, spec.Repository, spec.Ref)
 	if err != nil {
 		return report, err

@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Siddhant-K-code/agent-harness/internal/chat"
 	"github.com/Siddhant-K-code/agent-harness/internal/credentials"
 	"github.com/Siddhant-K-code/agent-harness/internal/integrations"
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
@@ -50,6 +51,9 @@ type Server struct {
 	busy        bool
 	lastError   string
 	wg          sync.WaitGroup
+	chats       *chat.Store
+	chatCancel  context.CancelFunc
+	activeChat  string
 }
 
 func Serve(ctx context.Context, o Options, out io.Writer) error {
@@ -68,11 +72,16 @@ func Serve(ctx context.Context, o Options, out io.Writer) error {
 		return err
 	}
 	defer db.Close()
+	chats, err := chat.Open(o.Root)
+	if err != nil {
+		return err
+	}
+	defer chats.Close()
 	var token [32]byte
 	if _, err = rand.Read(token[:]); err != nil {
 		return err
 	}
-	s := &Server{options: o, db: db, token: hex.EncodeToString(token[:]), host: listener.Addr().String(), ctx: ctx}
+	s := &Server{options: o, db: db, chats: chats, token: hex.EncodeToString(token[:]), host: listener.Addr().String(), ctx: ctx}
 	httpServer := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	fmt.Fprintf(out, "Local dashboard: http://%s/#token=%s\nKeep this local access link private. Ctrl-C stops the server and cancels runs it owns.\n", s.host, s.token)
 	done := make(chan struct{})
@@ -101,10 +110,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}", s.detail)
 	mux.HandleFunc("POST /api/runs", s.start)
 	mux.HandleFunc("POST /api/runs/{id}/cancel", s.cancel)
+	mux.HandleFunc("POST /api/chats", s.createChat)
+	mux.HandleFunc("GET /api/chats/{id}", s.getChat)
+	mux.HandleFunc("POST /api/chats/{id}/ask", s.askChat)
+	mux.HandleFunc("POST /api/chats/{id}/cancel", s.cancelChat)
 	sub, _ := fs.Sub(assets, "web")
 	static := http.FileServer(http.FS(sub))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" {
+		if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/chat.js" && r.URL.Path != "/style.css" {
 			http.NotFound(w, r)
 			return
 		}
@@ -217,7 +230,15 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	busy, lastError := s.busy, s.lastError
 	s.mu.Unlock()
-	send(w, map[string]any{"runs": items, "tasks": s.options.Tasks, "skills": versions, "integrations": c, "integration_error": integrationError, "key_present": keyErr == nil, "key_source": keySource, "prompt": prompt.Build("docker", tooling.Native()), "busy": busy, "last_error": lastError})
+	chats := []chat.Summary{}
+	if s.chats != nil {
+		chats, err = s.chats.List()
+		if err != nil {
+			fail(w, err)
+			return
+		}
+	}
+	send(w, map[string]any{"runs": items, "tasks": s.options.Tasks, "chats": chats, "models": model.Catalog(), "skills": versions, "integrations": c, "integration_error": integrationError, "key_present": keyErr == nil, "key_source": keySource, "prompt": prompt.Build("docker", tooling.Native()), "busy": busy, "last_error": lastError})
 }
 func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -259,13 +280,15 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 }
 
 type startRequest struct {
-	Task    int          `json:"task"`
-	Goal    string       `json:"goal"`
-	Model   string       `json:"model"`
-	Context int64        `json:"context_window_tokens"`
-	Output  int64        `json:"max_output_tokens"`
-	USD     float64      `json:"max_usd"`
-	Skills  []skills.Ref `json:"skills"`
+	Conversation string       `json:"conversation,omitempty"`
+	RequestID    string       `json:"request_id,omitempty"`
+	Task         int          `json:"task"`
+	Goal         string       `json:"goal"`
+	Model        string       `json:"model"`
+	Context      int64        `json:"context_window_tokens"`
+	Output       int64        `json:"max_output_tokens"`
+	USD          float64      `json:"max_usd"`
+	Skills       []skills.Ref `json:"skills"`
 }
 
 func (s *Server) start(w http.ResponseWriter, r *http.Request) {
@@ -282,6 +305,18 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	base := s.options.Tasks[a.Task]
+	if a.Conversation != "" {
+		c, e := s.configuredChat(a.Conversation)
+		if e != nil {
+			fail(w, e)
+			return
+		}
+		if c.PresetHash != presetHash(base) {
+			fail(w, errors.New("conversation belongs to a different prepared task"))
+			return
+		}
+		base.Ref = c.Task.Ref
+	}
 	spec := base
 	// Copy mutable pointers before applying overrides to avoid changing the preset.
 	if base.Compaction != nil {
@@ -315,6 +350,19 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
+	if a.Conversation != "" {
+		old, e := s.chats.Existing(a.Conversation, a.RequestID, requestHash(a))
+		if e != nil {
+			s.mu.Unlock()
+			fail(w, e)
+			return
+		}
+		if old != nil {
+			s.mu.Unlock()
+			send(w, map[string]any{"accepted": true, "turn": old})
+			return
+		}
+	}
 	if s.busy {
 		s.mu.Unlock()
 		http.Error(w, "a dashboard run is already active", http.StatusConflict)
@@ -325,16 +373,58 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server is stopping", http.StatusServiceUnavailable)
 		return
 	}
+	if a.Conversation != "" {
+		settings, _ := model.ResolveSettings(spec)
+		_, e := s.chats.Begin(a.Conversation, chat.Turn{ID: a.RequestID, RequestHash: requestHash(a), Kind: "task", Question: a.Goal, Settings: settings, MaxUSD: a.USD})
+		if e != nil {
+			s.mu.Unlock()
+			fail(w, e)
+			return
+		}
+	}
 	s.busy = true
 	s.lastError = ""
+	runCtx, stopRun := context.WithCancel(s.ctx)
+	s.chatCancel, s.activeChat = stopRun, a.Conversation
 	s.wg.Add(1)
 	s.mu.Unlock()
 	go func() {
 		defer s.wg.Done()
-		_, err := (runner.Runner{Store: s.db, Root: s.options.Root, Key: key.Value}).Run(s.ctx, spec)
+		defer stopRun()
+		run := runner.Runner{Store: s.db, Root: s.options.Root, Key: key.Value}
+		if a.Conversation != "" {
+			run.Created = func(id string) error {
+				return s.chats.Update(a.Conversation, a.RequestID, func(t *chat.Turn) { t.RunID = id; t.Phase = "Coding run in progress" })
+			}
+		}
+		report, err := run.Run(runCtx, spec)
+		if a.Conversation != "" {
+			e := s.chats.Update(a.Conversation, a.RequestID, func(t *chat.Turn) {
+				t.State = string(report.State)
+				if t.State == "" {
+					t.State = "failed"
+				}
+				t.RunID = report.RunID
+				t.Phase = "Coding run ended"
+				t.EstimatedUSD = report.EstimatedUSD
+				t.BillingUnknown = report.BillingUnknown
+				t.InputTokens = report.InputTokens
+				t.OutputTokens = report.OutputTokens
+				if err != nil {
+					t.Error = err.Error()
+				}
+				if report.Verified {
+					t.Answer = "The coding run passed its independent verifier. Open the run to review the patch and evidence. The source project is unchanged."
+				} else {
+					t.Answer = "The coding run did not produce a verified completion. Open the run for its results and any saved patch."
+				}
+			})
+			err = errors.Join(err, e)
+		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		s.busy = false
+		s.chatCancel, s.activeChat = nil, ""
 		if err != nil {
 			s.lastError = err.Error()
 		}

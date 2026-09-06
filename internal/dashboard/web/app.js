@@ -17,7 +17,7 @@ window.addEventListener("hashchange", () => {
     location.reload();
 });
 let data = null,
-  view = "runs",
+  view = "chat",
   selected = null,
   detail = null,
   detailTab = "patch",
@@ -65,10 +65,11 @@ function metric(label, value) {
 function render() {
   if (!data) return;
   const root = $("#view");
-  root.replaceChildren();
+  if (view !== "chat") root.replaceChildren();
   document
     .querySelectorAll("[data-view]")
     .forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  if (view === "chat") renderChat(root);
   if (view === "runs") renderRuns(root);
   if (view === "skills") renderSkills(root);
   if (view === "connections") renderConnections(root);
@@ -508,7 +509,11 @@ function fillPreset() {
   $("#usd").value = t.limits.max_usd;
   $("#usd").max = t.limits.max_usd;
   $("#preset-info").textContent =
-    t.repository + " · " + (t.backend || "docker") + " · base " + short(t.ref);
+    t.repository.split(/[\\/]/).pop() +
+    " · " +
+    (t.backend || "docker") +
+    " · base " +
+    short(t.ref);
   $("#run-budget-note").textContent =
     "Starting a run calls the real model. This task permits up to $" +
     t.limits.max_usd.toFixed(2) +
@@ -532,7 +537,12 @@ function fillPreset() {
   if (!options.children.length)
     options.append(el("p", "muted", "No active skills for this repository."));
 }
+let runChat = null;
+let runRequestID = null;
 function openRun() {
+  runChat = null;
+  runRequestID = null;
+  $("#preset").disabled = false;
   $("#preset").replaceChildren();
   data.tasks.forEach((t, i) => {
     const o = el("option", "", t.name);
@@ -551,6 +561,7 @@ $("#run-form").addEventListener("submit", async (e) => {
   $("#form-error").textContent = "";
   try {
     const payload = {
+      ...(runChat ? { conversation: runChat, request_id: runRequestID } : {}),
       task: Number($("#preset").value),
       goal: $("#goal").value,
       model: $("#model").value,
@@ -566,6 +577,10 @@ $("#run-form").addEventListener("submit", async (e) => {
     $("#run-dialog").close();
     selected = null;
     detail = null;
+    if (runChat) {
+      chatDraft = "";
+      if ($("#chat-message")) $("#chat-message").value = "";
+    }
     await refresh();
   } catch (e) {
     $("#form-error").textContent = e.message;
@@ -601,6 +616,7 @@ async function refresh() {
     );
     if (changed || !$("#view").children.length) render();
     await refreshDetail();
+    if (view === "chat") await refreshChat();
   } catch (e) {
     notice(e.message);
     if (!data)
@@ -615,5 +631,7 @@ async function refresh() {
     loading = false;
   }
 }
-refresh();
-setInterval(refresh, 3000);
+document.addEventListener("DOMContentLoaded", () => {
+  refresh();
+  setInterval(refresh, 3000);
+});

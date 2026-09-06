@@ -172,6 +172,18 @@ with tempfile.TemporaryDirectory(prefix="harness-package-") as temporary:
             assert overview["key_present"] and not overview["runs"]
             assert b"package-test-credential" not in body
             assert overview["tasks"][0]["name"] == "words"
+            assert not overview["chats"] and overview["models"]
+        with urllib.request.urlopen(origin + "/chat.js", timeout=10) as response:
+            assert b"Ask project" in response.read()
+        request = urllib.request.Request(origin + "/api/chats", data=b'{"task":0}', headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            conversation = json.load(response)
+            assert len(conversation["task"]["ref"]) == 40 and not conversation["turns"]
+        request = urllib.request.Request(origin + "/api/chats/" + conversation["id"], headers={"Authorization": "Bearer " + token})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            assert json.load(response)["available"]
+        assert len(list((lab / ".harness" / "chats").glob("*.json"))) == 1
+
     finally:
         process.terminate()
         process.wait(timeout=10)

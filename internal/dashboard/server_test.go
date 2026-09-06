@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Siddhant-K-code/agent-harness/internal/chat"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 )
@@ -27,7 +28,12 @@ func setup(t *testing.T) *Server {
 		t.Fatal(err)
 	}
 	spec.Limits.MaxUSD = .25
-	return &Server{options: Options{Root: root, Tasks: []task.Spec{spec}}, db: db, token: "local-test-token", host: "127.0.0.1:8765", ctx: context.Background()}
+	chats, err := chat.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { chats.Close() })
+	return &Server{options: Options{Root: root, Tasks: []task.Spec{spec}}, db: db, chats: chats, token: "local-test-token", host: "127.0.0.1:8765", ctx: context.Background()}
 }
 func request(s *Server, method, path, body, token, origin, host string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, "http://"+host+path, strings.NewReader(body))

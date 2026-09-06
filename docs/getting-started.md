@@ -9,13 +9,13 @@ Download the archive matching your computer from the repository's [Releases page
 For an accessible preview release, this example uses GitHub CLI on Apple Silicon. Change `darwin_arm64` to `darwin_amd64`, `linux_amd64`, or `linux_arm64` as needed:
 
 ```sh
-gh release download v0.1.0-rc.4 --repo Siddhant-K-code/agent-harness \
-  --pattern 'agent-harness_v0.1.0-rc.4_darwin_arm64.tar.gz' \
+gh release download v0.1.0-rc.5 --repo Siddhant-K-code/agent-harness \
+  --pattern 'agent-harness_v0.1.0-rc.5_darwin_arm64.tar.gz' \
   --pattern 'checksums.txt' --dir harness-download
 cd harness-download
 shasum -a 256 --ignore-missing -c checksums.txt
 mkdir bundle
-tar -xzf agent-harness_v0.1.0-rc.4_darwin_arm64.tar.gz -C bundle
+tar -xzf agent-harness_v0.1.0-rc.5_darwin_arm64.tar.gz -C bundle
 sh bundle/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 harness version
@@ -57,7 +57,7 @@ Successful output includes `run_id`, `verified`, `cleanup_confirmed`, `estimated
 
 ## Local dashboard and integrations
 
-Run `harness serve --task harness.task.json` and open the private local link. Use the dashboard to review runs and patches, inspect skills and prompts, and launch prepared tasks with model/context settings. The task's spending limit is the UI's ceiling. `harness serve` without a task enables inspection/cancellation only.
+Run `harness serve --task harness.task.json` and open the private local link. Use Chat to ask about committed project files and turn a message into a reviewed coding task. Conversation history and source reads persist locally. Use the dashboard to review runs and patches, inspect skills and prompts, and launch prepared tasks with model/context settings. The task's spending limit is the UI's ceiling. `harness serve` without a task enables inspection/cancellation only.
 
 The UI is embedded in the binary. GitHub integration additionally requires `gh`; MCP uses Streamable HTTP and explicit server/tool selection. See [the complete setup guide](ui-and-integrations.md) or `UI-AND-INTEGRATIONS.md` in the archive for credentials, supported operations and current limits.
 

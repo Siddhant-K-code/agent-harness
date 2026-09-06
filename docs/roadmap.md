@@ -42,7 +42,12 @@ Acceptance: token savings are reported with verified completion, latency, and fa
 
 The embedded `harness serve` dashboard displays real run evidence and launches prepared tasks with bounded model/context settings. `coding-v2` records a prompt/tool contract per run. Typed file/list/search/write tools share the existing executor lifecycle. The operator-scoped Streamable HTTP MCP broker discovers and pins selected tool schemas, rechecks policy, and stops on uncertain effects. GitHub reads and authenticated private clones use host `gh` credentials. See [setup and limits](ui-and-integrations.md) and [live validation](evidence/2026-09-06/ui-integrations/README.md).
 
-## 5b. GitHub review/approval, distributed authorization, and incremental evidence — pending
+## 5b. Project conversations — implemented
+
+The local UI now supports persistent project chat, real read-only Q&A over a pinned Git commit, numbered source reads, configurable model/context and per-question budget, cancellation, and an editable message-to-coding-task handoff. Request IDs deduplicate paid submissions; interrupted questions are not replayed. Coding results link back to their run evidence. Q&A needs no sandbox runtime because it only reads committed blobs through fixed Git commands. See [chat setup, privacy and limits](ui-and-integrations.md#project-chat).
+
+
+## 5c. GitHub review/approval, distributed authorization, and incremental evidence — pending
 
 Extend the local broker with patch-bound approval for GitHub writes. Implement sponsor authentication and per-dispatch OpenFGA checks before external mutations. Read-only issue/diff/check access is available; scoped branch pushes and draft PR creation remain pending. Add actionsec for workflow changes and task-specific diagnostics/browser checks when needed.
 

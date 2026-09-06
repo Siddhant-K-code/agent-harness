@@ -29,6 +29,7 @@ type Client struct {
 type Call struct{ ID, Name, Arguments string }
 type Reply struct {
 	ID     string
+	Text   string
 	Calls  []Call
 	Items  []responses.ResponseInputItemUnionParam
 	Usage  responses.ResponseUsage
@@ -126,7 +127,7 @@ func (c Client) Next(ctx context.Context, input []responses.ResponseInputItemUni
 	if err != nil {
 		return Reply{}, safeError("create response", err)
 	}
-	reply := Reply{ID: r.ID, Usage: r.Usage, Status: string(r.Status), Raw: json.RawMessage(r.RawJSON())}
+	reply := Reply{ID: r.ID, Text: r.OutputText(), Usage: r.Usage, Status: string(r.Status), Raw: json.RawMessage(r.RawJSON())}
 	for _, item := range r.Output {
 		// Preserve every output item, including opaque reasoning continuation data.
 		reply.Items = append(reply.Items, param.Override[responses.ResponseInputItemUnionParam](json.RawMessage(item.RawJSON())))

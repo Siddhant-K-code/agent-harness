@@ -1,0 +1,78 @@
+{
+  "model": "gpt-5.4",
+  "base_commit": "feef209845d87ec1587a52c89c58c375c98aecbd",
+  "turns": [
+    {
+      "id": "a496a930d09348f89a22b2f18e9b5245",
+      "kind": "ask",
+      "state": "completed",
+      "requests": 2,
+      "input_tokens": 1586,
+      "output_tokens": 265,
+      "estimated_usd_uncached": 0.00794,
+      "billing_unknown": false,
+      "run_id": null,
+      "prompt_version": "project-chat-v1",
+      "prompt_sha256": "4c52038a3237dd19226da38f77921722cc02b009ed269020ad011fe0b059203f"
+    },
+    {
+      "id": "80857028381a470781dd588fbb9578e6",
+      "kind": "task",
+      "state": "completed",
+      "input_tokens": 5513,
+      "output_tokens": 474,
+      "estimated_usd_uncached": 0.0208925,
+      "billing_unknown": false,
+      "run_id": "fc5e38518f8d09fe0f8afc83535484f8"
+    }
+  ],
+  "coding_run": {
+    "run_id": "fc5e38518f8d09fe0f8afc83535484f8",
+    "state": "completed",
+    "verified": true,
+    "verification_attempts": 1,
+    "cleanup_confirmed": true,
+    "input_tokens": 5513,
+    "output_tokens": 474,
+    "estimated_usd_uncached": 0.0208925,
+    "billing_unknown": false,
+    "prompt_version": "coding-v2",
+    "prompt_sha256": "2fde21ef78dded2dab8492a82bef0c7d9f0702621af363a2913386970afabf9a",
+    "verifier_sha256": "03a0a88e5cc53d6a2cfbc1223e06e0d93d72e1e1305ba87ba423325fc3fa78e7",
+    "image_id": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32"
+  },
+  "total_estimated_model_usd": 0.0288325,
+  "recording": {
+    "source": "Real local browser screenshots of the actual Q&A and coding run; no simulated model/executor",
+    "timing": "Selected states with shortened waits, not a wall-clock recording",
+    "frames": [
+      {
+        "file": "04-answer.png",
+        "sha256": "9e392f4c40c7904ec41dcf309567e3517848a891d4437136a2b28fbb216283df"
+      },
+      {
+        "file": "05-source.png",
+        "sha256": "8c7a07f19a52394c3522a029489c182438909461e33a2fc82d243f49a8ebca7b"
+      },
+      {
+        "file": "06-review-task.png",
+        "sha256": "3d39a43aeac3d43e65d727ba56c5c26ce328f0194d168b42807aa138cf02e46c"
+      },
+      {
+        "file": "07-completed.png",
+        "sha256": "359599780920d7b9c172c0b229f61c4f1a53e93afc9d693dc7f64086d8cb2aa2"
+      },
+      {
+        "file": "08-verified.png",
+        "sha256": "490aae62efccfad0e7090a091e3b033f46c3d975f865fc1c778128cb0443493f"
+      },
+      {
+        "file": "09-patch.png",
+        "sha256": "6e2fb711cf99ec79fa0e519499902adad8d3b884b4bb22412ad25f2ec05d7712"
+      }
+    ],
+    "duration_seconds": 23,
+    "gif_sha256": "81f33c891c06774485aa9b52d78d55fd9570efcd78ea65362ea78bf167da6811",
+    "gif_bytes": 759998
+  }
+}
