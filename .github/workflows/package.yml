@@ -18,8 +18,10 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: package-${{ github.ref }}
+  # Release builds must not block push/PR checks. Keep every queued commit.
+  group: package-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
+  queue: max
 jobs:
   package:
     strategy:
