@@ -6,7 +6,16 @@ The web app runs on your machine through `harness serve`. There is no hosted sig
 
 ## Install a binary
 
-**[v0.1.0-rc.6](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6) is published with project-signed archives** for all four platforms. [Direct platform downloads](../README.md#install-and-open-the-app) are also available. rc.1–rc.5 are historical unsigned drafts; ordinary CI artifacts are also unsigned.
+**[v0.1.0](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0) is published with project-signed archives** for all four platforms. [Direct platform downloads](../README.md#install-and-open-the-app) are also available. rc.1–rc.5 are historical unsigned drafts; ordinary CI artifacts are also unsigned.
+
+For a short install using the release-tagged source (Python 3.9+, OpenSSL and authenticated GitHub CLI):
+
+```sh
+gh api 'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=v0.1.0' \
+  -H 'Accept: application/vnd.github.raw+json' | python3 - --version v0.1.0
+```
+
+This installs the native CLI and embedded web app. Keep `~/.local/bin` on PATH and add `--force` only to replace an existing CLI. Download errors are printed by GitHub CLI; installation succeeds only when the installer prints `Verified project signature` followed by the installed `harness` version. Use the complete source-pinned block below when you also need strict shell error handling.
 
 This command downloads the bootstrap from an immutable source commit and installs the matching signed archive. It requires Python 3.9+, OpenSSL and authenticated GitHub CLI with repository access:
 
@@ -16,8 +25,8 @@ This command downloads the bootstrap from an immutable source commit and install
   installer=$(mktemp)
   trap 'rm -f "$installer"' EXIT
   gh api -H 'Accept: application/vnd.github.raw+json' \
-    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=bb5a4695f5f2acddd8cc799e67ed7410c06995f8' > "$installer"
-  python3 "$installer" --version v0.1.0-rc.6
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=498fd66857d9ab8fe1d8bec88c60ace4b3fffc38' > "$installer"
+  python3 "$installer" --version v0.1.0
 )
 export PATH="$HOME/.local/bin:$PATH"
 harness version
@@ -43,8 +52,8 @@ On macOS with [Homebrew](https://brew.sh/), this installs prerequisites, starts 
   installer=$(mktemp)
   trap 'rm -f "$installer"' EXIT
   gh api -H 'Accept: application/vnd.github.raw+json' \
-    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=bb5a4695f5f2acddd8cc799e67ed7410c06995f8' > "$installer"
-  python3.12 "$installer" --version v0.1.0-rc.6 \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=498fd66857d9ab8fe1d8bec88c60ace4b3fffc38' > "$installer"
+  python3.12 "$installer" --version v0.1.0 \
     --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
 )
 ```
@@ -75,7 +84,7 @@ To build the released source yourself, you need Go 1.25+, Make, Git, GitHub CLI 
 gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
 gh repo clone Siddhant-K-code/agent-harness
 cd agent-harness
-git checkout --detach bb5a4695f5f2acddd8cc799e67ed7410c06995f8
+git checkout --detach 498fd66857d9ab8fe1d8bec88c60ace4b3fffc38
 make install
 export PATH="$HOME/.local/bin:$PATH"
 harness version

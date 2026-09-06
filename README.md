@@ -12,16 +12,25 @@ A local CLI and project chat for coding work with a budget, an independent verif
 
 ## Install and open the app
 
-**[v0.1.0-rc.6 is available](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6)** — native CLI and embedded web app, with project-signed archives.
+**[v0.1.0 is available](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0)** — native CLI and embedded web app, with project-signed archives.
+
+**Quick install** — needs Python 3.9+, OpenSSL and [GitHub CLI](https://cli.github.com/), authenticated with `gh auth login` and repository access:
+
+```sh
+gh api 'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=v0.1.0' \
+  -H 'Accept: application/vnd.github.raw+json' | python3 - --version v0.1.0
+```
+
+This selects the matching macOS/Linux archive, verifies its project signature and installs `~/.local/bin/harness`. Add `--force` to replace an existing CLI. Then run `export PATH="$HOME/.local/bin:$PATH"` and `harness version`. The short command trusts the release-tagged source on GitHub; the complete setup below pins the bootstrap to a full source commit.
 
 | Your computer | Download |
 | --- | --- |
-| macOS · Apple Silicon | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_darwin_arm64.tar.gz) |
-| macOS · Intel | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_darwin_amd64.tar.gz) |
-| Linux · Intel/AMD 64-bit | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_linux_amd64.tar.gz) |
-| Linux · ARM64 | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_linux_arm64.tar.gz) |
+| macOS · Apple Silicon | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0/agent-harness_v0.1.0_darwin_arm64.tar.gz) |
+| macOS · Intel | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0/agent-harness_v0.1.0_darwin_amd64.tar.gz) |
+| Linux · Intel/AMD 64-bit | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0/agent-harness_v0.1.0_linux_amd64.tar.gz) |
+| Linux · ARM64 | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0/agent-harness_v0.1.0_linux_arm64.tar.gz) |
 
-[Checksums](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/checksums.txt) · [Manifest signature](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/checksums.txt.sig) · [Release notes](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6) · [CLI-only installation / Linux](docs/getting-started.md#install-a-binary)
+[Checksums](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0/checksums.txt) · [Manifest signature](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0/checksums.txt.sig) · [Release notes](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0) · [CLI-only installation / Linux](docs/getting-started.md#install-a-binary)
 
 Sign in to GitHub with repository access to download. The command below selects your platform and verifies the manifest signature, archive hash and source identity before installation. For a manual download, follow [signature verification](docs/release-verification.md) before extracting it. Signatures use the project's pinned key; Apple Developer ID signing and notarization are not provided.
 
@@ -37,15 +46,15 @@ Sign in to GitHub with repository access to download. The command below selects 
   installer=$(mktemp)
   trap 'rm -f "$installer"' EXIT
   gh api -H 'Accept: application/vnd.github.raw+json' \
-    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=bb5a4695f5f2acddd8cc799e67ed7410c06995f8' > "$installer"
-  python3.12 "$installer" --version v0.1.0-rc.6 \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=498fd66857d9ab8fe1d8bec88c60ace4b3fffc38' > "$installer"
+  python3.12 "$installer" --version v0.1.0 \
     --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
 )
 ```
 
 Open the complete local link printed by the server. Setup downloads dependencies and prompts for your key locally; **no paid model request is submitted**. Choose a new setup directory if `~/harness-demo` exists. Add `--force` to the Python command only when replacing an installed CLI. Keep `~/.local/bin` on your shell's PATH for later use. If Docker Desktop is already running, omit `docker colima` from the Homebrew command and omit `colima start`.
 
-[Linux and complete setup guide](docs/getting-started.md#complete-local-setup) · [Build from source](docs/getting-started.md#install-from-source) · [Source ZIP](https://github.com/Siddhant-K-code/agent-harness/archive/bb5a4695f5f2acddd8cc799e67ed7410c06995f8.zip). The ZIP contains source code: with Go 1.25+, run `go build -o harness ./cmd/harness` inside the extracted directory, then `./harness --help`.
+[Linux and complete setup guide](docs/getting-started.md#complete-local-setup) · [Build from source](docs/getting-started.md#install-from-source) · [Source ZIP](https://github.com/Siddhant-K-code/agent-harness/archive/498fd66857d9ab8fe1d8bec88c60ace4b3fffc38.zip). The ZIP contains source code: with Go 1.25+, run `go build -o harness ./cmd/harness` inside the extracted directory, then `./harness --help`.
 
 ## See it work
 
