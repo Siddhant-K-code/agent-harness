@@ -1,15 +1,15 @@
 # Changelog
 
-## Unreleased — changes since v0.1.0-rc.5
+## v0.1.0-rc.6 — September 6, 2026
 
-The intended next version is `v0.1.0-rc.6`. Its signed artifacts have not been published. [Install current source](docs/getting-started.md#install-from-source).
+[Published prerelease](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6) with project-signed native archives for macOS/Linux, amd64/arm64. [Install and start the app](docs/getting-started.md#complete-local-setup).
 
 - Added an MIT license and included it with dependency notices in new package builds.
 - Added a pinned installer that verifies a project-signed RSA-3072/SHA-256 checksum manifest, archive contents and source metadata before installation. Optional setup prepares the demo, Docker image, native AgentTrace, local BYOK and embedded web app.
 - Added a release workflow that signs tested macOS/Linux amd64/arm64 archives, downloads and verifies uploaded assets, and publishes only after those checks succeed.
 - Tested signature tampering, wrong keys/versions, archive path rejection, native installation and upgrades on all four targets. Removed macOS metadata files from new archives.
 - Kept package checks queued separately from manual release builds, so a new run does not cancel an earlier check.
-- Documented a working pinned source setup while signed downloads are pending, and separated existing-project restart commands from first-time setup.
+- Provided direct platform download links and a complete pinned binary setup command; separated existing-project restart commands from first-time setup.
 
 Project archive signatures do not provide Apple Developer ID signing or notarization. Source installation and ordinary CI artifacts are not signed releases.
 

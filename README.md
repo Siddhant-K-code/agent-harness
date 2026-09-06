@@ -12,49 +12,40 @@ A local CLI and project chat for coding work with a budget, an independent verif
 
 ## Install and open the app
 
-**Binary downloads — v0.1.0-rc.5 (unsigned draft)**
+**[v0.1.0-rc.6 is available](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6)** — native CLI and embedded web app, with project-signed archives.
 
 | Your computer | Download |
 | --- | --- |
-| macOS · Apple Silicon | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_darwin_arm64.tar.gz) |
-| macOS · Intel | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_darwin_amd64.tar.gz) |
-| Linux · Intel/AMD 64-bit | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_linux_amd64.tar.gz) |
-| Linux · ARM64 | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/agent-harness_v0.1.0-rc.5_linux_arm64.tar.gz) |
+| macOS · Apple Silicon | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_darwin_arm64.tar.gz) |
+| macOS · Intel | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_darwin_amd64.tar.gz) |
+| Linux · Intel/AMD 64-bit | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_linux_amd64.tar.gz) |
+| Linux · ARM64 | [Download `.tar.gz`](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/agent-harness_v0.1.0-rc.6_linux_arm64.tar.gz) |
 
-[SHA-256 checksums](https://github.com/Siddhant-K-code/agent-harness/releases/download/untagged-8aa7d8190d6cdd424351/checksums.txt) · [Draft installation instructions and release notes](https://github.com/Siddhant-K-code/agent-harness/releases/tag/untagged-8aa7d8190d6cdd424351) · [All releases](https://github.com/Siddhant-K-code/agent-harness/releases)
+[Checksums](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/checksums.txt) · [Manifest signature](https://github.com/Siddhant-K-code/agent-harness/releases/download/v0.1.0-rc.6/checksums.txt.sig) · [Release notes](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6) · [CLI-only installation / Linux](docs/getting-started.md#install-a-binary)
 
-Sign in to GitHub with collaborator access to use these draft links. Verify the archive against `checksums.txt` before extracting and running its `install.sh`. These are older, unsigned binaries; draft URLs can change if the draft is edited. They do not include the newer package-license and signing changes.
+Sign in to GitHub with repository access to download. The command below selects your platform and verifies the manifest signature, archive hash and source identity before installation. For a manual download, follow [signature verification](docs/release-verification.md) before extracting it. Signatures use the project's pinned key; Apple Developer ID signing and notarization are not provided.
 
-**Current source:** [Download ZIP](https://github.com/Siddhant-K-code/agent-harness/archive/ae422133ae5f081ad35e356f6d94a83077f0b0c2.zip) · [Browse source](https://github.com/Siddhant-K-code/agent-harness/tree/ae422133ae5f081ad35e356f6d94a83077f0b0c2) · [Minimal installation / Linux](docs/getting-started.md#install-from-source). The ZIP contains source code, not an app binary. With Go 1.25+ installed, run `go build -o harness ./cmd/harness` from the extracted directory, then `./harness --help`. ZIP builds report `dev` without a source commit. The full setup below uses a Git clone, records the source commit, and installs the CLI on PATH.
-
-**Complete source setup (macOS).** Signed `v0.1.0-rc.6` binaries are not published yet. This command uses [Homebrew](https://brew.sh/) and repository access to build the current pinned source revision, prepare Docker and AgentTrace, configure local BYOK, and start the web app:
+**Complete setup (macOS).** With [Homebrew](https://brew.sh/) installed, this prepares Docker and AgentTrace, installs the signed CLI, configures local BYOK and starts the web app. No Go build is needed:
 
 ```sh
 (
   set -eu
-  brew install git gh go python@3.12 docker colima
-  export PATH="$HOME/.local/bin:$PATH"
+  brew install git gh python@3.12 openssl@3 docker colima
+  export PATH="$HOME/.local/bin:$(brew --prefix openssl@3)/bin:$PATH"
   gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
   colima start
-  source_dir=$(mktemp -d)
-  trap 'rm -rf "$source_dir"' EXIT
-  gh repo clone Siddhant-K-code/agent-harness "$source_dir"
-  git -C "$source_dir" checkout --detach 8ac4a146a83b94c69f1737b00d0d7a59d11acdd9
-  make -C "$source_dir" install
-  harness version
-  harness init "$HOME/harness-demo"
-  cd "$HOME/harness-demo"
-  docker pull node:22-alpine
-  harness trace setup --python python3.12
-  harness auth status >/dev/null 2>&1 || harness auth login
-  harness doctor
-  harness serve --task harness.task.json
+  installer=$(mktemp)
+  trap 'rm -f "$installer"' EXIT
+  gh api -H 'Accept: application/vnd.github.raw+json' \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=bb5a4695f5f2acddd8cc799e67ed7410c06995f8' > "$installer"
+  python3.12 "$installer" --version v0.1.0-rc.6 \
+    --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
 )
 ```
 
-Open the complete local link printed by the server. Setup downloads dependencies and prompts for your key locally; **no paid model request is submitted**. Choose a new setup directory if `~/harness-demo` exists. `make install` installs or replaces `~/.local/bin/harness`; keep that directory on your shell's PATH for later use. If Docker Desktop is already running, omit `docker colima` from the Homebrew command and omit `colima start`.
+Open the complete local link printed by the server. Setup downloads dependencies and prompts for your key locally; **no paid model request is submitted**. Choose a new setup directory if `~/harness-demo` exists. Add `--force` to the Python command only when replacing an installed CLI. Keep `~/.local/bin` on your shell's PATH for later use. If Docker Desktop is already running, omit `docker colima` from the Homebrew command and omit `colima start`.
 
-The signed-binary installer is implemented and tested; its download command becomes usable when rc.6 is published. It verifies **project-signed archives before extraction**. Apple notarization is not provided. [Linux and minimal source installation](docs/getting-started.md#install-from-source) · [Signed binary installation status](docs/getting-started.md#install-a-binary) · [Signature verification](docs/release-verification.md).
+[Linux and complete setup guide](docs/getting-started.md#complete-local-setup) · [Build from source](docs/getting-started.md#install-from-source) · [Source ZIP](https://github.com/Siddhant-K-code/agent-harness/archive/bb5a4695f5f2acddd8cc799e67ed7410c06995f8.zip). The ZIP contains source code: with Go 1.25+, run `go build -o harness ./cmd/harness` inside the extracted directory, then `./harness --help`.
 
 ## See it work
 
@@ -86,7 +77,7 @@ The web app runs on **your computer**: `harness serve` starts the local server a
 | You need | When |
 | --- | --- |
 | macOS or Linux, Git, and a browser | Required; native archives cover Intel/AMD and ARM. Windows binaries are not shipped. |
-| The installed `harness` CLI | Required. [Build from source now](docs/getting-started.md#install-from-source); [signed binary downloads are pending](docs/getting-started.md#install-a-binary). |
+| The installed `harness` CLI | Required. [Install a signed binary](docs/getting-started.md#install-a-binary) or [build from source](docs/getting-started.md#install-from-source). |
 | Your OpenAI API key, API billing/model access, and internet access | To submit questions or coding tasks. Inference runs through OpenAI. |
 | A running Docker daemon and the task's image | For local coding runs. Read-only project questions do not need Docker. |
 

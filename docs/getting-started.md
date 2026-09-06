@@ -6,9 +6,9 @@ The web app runs on your machine through `harness serve`. There is no hosted sig
 
 ## Install a binary
 
-**Signed rc.6 binaries are not published yet.** Use [source installation](#install-from-source) for the current CLI. rc.1–rc.5 are historical drafts without project signatures; ordinary CI artifacts are also unsigned. Check the [Releases page](https://github.com/Siddhant-K-code/agent-harness/releases) for availability.
+**[v0.1.0-rc.6](https://github.com/Siddhant-K-code/agent-harness/releases/tag/v0.1.0-rc.6) is published with project-signed archives** for all four platforms. [Direct platform downloads](../README.md#install-and-open-the-app) are also available. rc.1–rc.5 are historical unsigned drafts; ordinary CI artifacts are also unsigned.
 
-After the signed `v0.1.0-rc.6` release is published, this command downloads the bootstrap from an immutable source commit and installs the matching signed archive. It requires Python 3.9+, OpenSSL and authenticated GitHub CLI with repository access:
+This command downloads the bootstrap from an immutable source commit and installs the matching signed archive. It requires Python 3.9+, OpenSSL and authenticated GitHub CLI with repository access:
 
 ```sh
 (
@@ -16,7 +16,7 @@ After the signed `v0.1.0-rc.6` release is published, this command downloads the 
   installer=$(mktemp)
   trap 'rm -f "$installer"' EXIT
   gh api -H 'Accept: application/vnd.github.raw+json' \
-    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=3195faf0497d4d300139624ac91d268458afb4e7' > "$installer"
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=bb5a4695f5f2acddd8cc799e67ed7410c06995f8' > "$installer"
   python3 "$installer" --version v0.1.0-rc.6
 )
 export PATH="$HOME/.local/bin:$PATH"
@@ -31,43 +31,29 @@ To upgrade, repeat the pinned bootstrap command with the desired signed version 
 
 ## Complete local setup
 
-On macOS with [Homebrew](https://brew.sh/), this source-based command works before the signed release is available. It installs the prerequisites and starts [Colima](https://formulae.brew.sh/formula/colima), builds the pinned source, then prepares the demo and opens the local server:
+On macOS with [Homebrew](https://brew.sh/), this installs prerequisites, starts [Colima](https://formulae.brew.sh/formula/colima), verifies and installs the released binary, prepares the demo and starts the local server:
 
 ```sh
 (
   set -eu
-  brew install git gh go python@3.12 docker colima
-  export PATH="$HOME/.local/bin:$PATH"
+  brew install git gh python@3.12 openssl@3 docker colima
+  export PATH="$HOME/.local/bin:$(brew --prefix openssl@3)/bin:$PATH"
   gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
   colima start
-  source_dir=$(mktemp -d)
-  trap 'rm -rf "$source_dir"' EXIT
-  gh repo clone Siddhant-K-code/agent-harness "$source_dir"
-  git -C "$source_dir" checkout --detach 8ac4a146a83b94c69f1737b00d0d7a59d11acdd9
-  make -C "$source_dir" install
-  harness version
-  harness init "$HOME/harness-demo"
-  cd "$HOME/harness-demo"
-  docker pull node:22-alpine
-  harness trace setup --python python3.12
-  harness auth status >/dev/null 2>&1 || harness auth login
-  harness doctor
-  harness serve --task harness.task.json
+  installer=$(mktemp)
+  trap 'rm -f "$installer"' EXIT
+  gh api -H 'Accept: application/vnd.github.raw+json' \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=bb5a4695f5f2acddd8cc799e67ed7410c06995f8' > "$installer"
+  python3.12 "$installer" --version v0.1.0-rc.6 \
+    --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
 )
 ```
 
 If Docker Desktop or another daemon is already running, omit `docker colima` from the Homebrew install and omit `colima start`. The script uses your current Docker context. Python is explicitly [3.12](https://formulae.brew.sh/formula/python@3.12) for AgentTrace.
 
-On Linux, install Go 1.25+, Make, Git, GitHub CLI, Python 3.12+ with `venv`, and a working Docker daemon through your distribution's supported installation method. [Official Docker Engine installation](https://docs.docker.com/engine/install/) includes distribution-specific setup. Check that `docker info` works as your regular user. Use the same source command above without `brew install` and `colima start`; replace `python3.12` with the path to your Python 3.12+ interpreter if necessary.
+On Linux, install Git, GitHub CLI, OpenSSL, Python 3.12+ with `venv`, and a working Docker daemon through your distribution's supported installation method. [Official Docker Engine installation](https://docs.docker.com/engine/install/) includes distribution-specific setup. Check that `docker info` works as your regular user. Use the command above without `brew install` and `colima start`, set `PATH="$HOME/.local/bin:$PATH"`, and replace `python3.12` with the path to your Python 3.12+ interpreter if necessary. Binary installation needs no Go compiler or Make.
 
-The command creates a new project and installs or replaces `~/.local/bin/harness`. If the project already exists, choose a different directory or restart the existing task with `harness serve --task harness.task.json`. AgentTrace setup runs once per task; don't repeat it for an existing environment. Login reuses an existing valid local credential configuration. It does not test API access. For source-based chat-only setup, omit Colima/Docker, AgentTrace and `doctor` commands; `doctor` checks the coding backend, while project questions need no Docker daemon.
-
-After signed binaries are published, the bootstrap can perform the project setup too. Within the **Install a binary** block, replace its Python invocation with this line (requires a running Docker daemon, Git and Python 3.12+):
-
-```sh
-python3 "$installer" --version v0.1.0-rc.6 \
-  --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
-```
+The command creates a new project and installs `~/.local/bin/harness`. If the project already exists, choose a different directory or restart it with `harness serve --task harness.task.json` from the project directory. Login reuses a configured local credential without testing API access. For chat-only setup, omit Docker/Colima from the prerequisite commands and remove `--with-docker --with-trace` from the installer invocation.
 
 These setup flags perform the following steps:
 
@@ -77,19 +63,19 @@ These setup flags perform the following steps:
 4. With `--login`, reuse a configured OpenAI key or prompt with hidden input and save it locally. No key is uploaded during setup.
 5. With `--with-docker`, run unpaid readiness checks; with `--serve`, start the embedded web app and print its private access link.
 
-No paid model request is submitted. Package/image downloads need internet access and disk space. For the signed bootstrap, choose a new `--setup` directory and add `--force` only when replacing the installed CLI. If a dependency/login check fails after installation, the binary and any new task remain available; finish setup from that directory using the individual commands below. To use chat without Docker or AgentTrace, omit their commands (source setup) or their two flags (binary setup). Skills, compaction and evaluated learning ship in the binary; MCP servers, GitHub grants and AWS access require your own project-specific configuration.
+No paid model request is submitted. Package/image downloads need internet access and disk space. For the signed bootstrap, choose a new `--setup` directory and add `--force` only when replacing the installed CLI. If a dependency/login check fails after installation, the binary and any new task remain available; finish setup from that directory using the individual commands below. Skills, compaction and evaluated learning ship in the binary; MCP servers, GitHub grants and AWS access require your own project-specific configuration.
 
 Add `~/.local/bin` to your shell's PATH for future sessions. Ctrl-C stops the web server. Return later with `cd ~/harness-demo` and `harness serve --task harness.task.json`, then open the newly printed complete link.
 
 ## Install from source
 
-This is the available installation path while signed rc.6 downloads are pending. It requires Go 1.25+, Make, Git, GitHub CLI and repository access. Choose an unused checkout directory:
+To build the released source yourself, you need Go 1.25+, Make, Git, GitHub CLI and repository access. Choose an unused checkout directory:
 
 ```sh
 gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
 gh repo clone Siddhant-K-code/agent-harness
 cd agent-harness
-git checkout --detach 8ac4a146a83b94c69f1737b00d0d7a59d11acdd9
+git checkout --detach bb5a4695f5f2acddd8cc799e67ed7410c06995f8
 make install
 export PATH="$HOME/.local/bin:$PATH"
 harness version
