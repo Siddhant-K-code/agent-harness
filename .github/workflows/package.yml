@@ -107,25 +107,41 @@ jobs:
           import os
           from pathlib import Path
           sha, version = os.environ['GITHUB_SHA'], os.environ['PACKAGE_VERSION']
-          Path('release-notes.md').write_text(f'''Native CLI and embedded web app for macOS/Linux, Intel/AMD and ARM. MIT licensed.
+          Path('release-notes.md').write_text(f'''Ask about a project, delegate a coding task, and review its independently verified patch. Native CLI and embedded local web app for macOS/Linux on Intel/AMD and ARM, licensed under MIT.
+
+          Included in this build:
+
+          - Real OpenAI project Q&A and isolated coding, with configurable model/context settings and explicit spending limits.
+          - Persistent local chat, source references, editable task handoff, verifier results, patches and cleanup evidence.
+          - Budgeted compaction, scoped skills, evaluated revision promotion/rollback, native AgentTrace, selected MCP tools and GitHub reads.
+          - Signature-verifying installation, optional complete local setup, LICENSE and third-party notices.
 
           All four archives are project-signed through an RSA-3072/SHA-256 checksum manifest. The installer verifies the pinned project key before extraction. These are not Apple Developer ID signed or notarized builds.
 
-          With Python 3.9+, OpenSSL, and authenticated GitHub CLI with repository access:
+          **Install and start the app.** Requires Git, OpenSSL, Python 3.12+ with venv, authenticated GitHub CLI with repository access, and a running Docker daemon. Choose a new setup directory:
 
           ```sh
-          installer=$(mktemp)
-          gh api -H 'Accept: application/vnd.github.raw+json' 'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref={sha}' > "$installer" &&
-          python3 "$installer" --version {version}
-          rm -f "$installer"
+          (
+            set -eu
+            installer=$(mktemp)
+            trap 'rm -f "$installer"' EXIT
+            gh api -H 'Accept: application/vnd.github.raw+json' 'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref={sha}' > "$installer"
+            python3 "$installer" --version {version} --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
+          )
           ```
 
-          [Complete setup, Docker, AgentTrace and BYOK](https://github.com/Siddhant-K-code/agent-harness/blob/{sha}/docs/getting-started.md#complete-local-setup). Setup submits no paid model requests.
+          Open the complete local access link printed by the server. Setup pulls the demo image, installs pinned AgentTrace, reuses or prompts locally for an OpenAI key, and starts the app. It submits no paid model requests; project questions and coding runs use your OpenAI account when submitted.
+
+          For CLI-only installation, omit `--setup` and the flags after it; Python 3.9+ is sufficient. Add `--force` explicitly when replacing an installed CLI. Keep `~/.local/bin` on PATH. To restart the same project later, run `cd ~/harness-demo` then `harness serve --task harness.task.json`; do not repeat initial setup.
+
+          [Setup and prerequisites](https://github.com/Siddhant-K-code/agent-harness/blob/{sha}/docs/getting-started.md) · [Changes and historical drafts](https://github.com/Siddhant-K-code/agent-harness/blob/{sha}/CHANGELOG.md) · [Signature verification](https://github.com/Siddhant-K-code/agent-harness/blob/{sha}/docs/release-verification.md).
+
+          This is a local, single-user preview. OpenAI is the implemented provider. Reviewed GitHub writes, MCP OAuth/stdio, automatic crash resume and Apple notarization are not included. A passing verifier establishes its checks, not arbitrary correctness; the recorded demos are not broad quality benchmarks.
 
           Source commit: `{sha}`.
           ''')
           PY
-          gh release create "$PACKAGE_VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION" --notes-file release-notes.md --generate-notes
+          gh release create "$PACKAGE_VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION" --notes-file release-notes.md
       - name: Download and authenticate uploaded assets before publication
         env:
           GH_TOKEN: ${{ github.token }}

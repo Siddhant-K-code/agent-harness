@@ -8,31 +8,38 @@
 A local CLI and project chat for coding work with a budget, an independent verifier, and a record of what happened. Bring your own OpenAI key. Run questions against committed project files, then turn the conversation into an isolated coding run. Your source checkout stays unchanged.
 
 
-[Get started](docs/getting-started.md) · [Chat & integrations](docs/ui-and-integrations.md) · [How it works](docs/architecture.md)
+[Get started](docs/getting-started.md) · [Chat & integrations](docs/ui-and-integrations.md) · [How it works](docs/architecture.md) · [Changelog](CHANGELOG.md)
 
 ## Install and open the app
 
-For macOS with [Homebrew](https://brew.sh/) and repository access, this prepares the CLI, Docker runtime, bundled project, native AgentTrace, local BYOK login, and web app:
+**Use source setup today.** The signed `v0.1.0-rc.6` binaries have not been published; rc.1–rc.5 are older unsigned drafts. This macOS command uses [Homebrew](https://brew.sh/) and repository access to build a pinned source revision, prepare Docker and AgentTrace, configure local BYOK, and start the web app:
 
 ```sh
 (
   set -eu
-  brew install git gh python@3.12 openssl@3 docker colima
-  export PATH="$(brew --prefix openssl@3)/bin:$HOME/.local/bin:$PATH"
+  brew install git gh go python@3.12 docker colima
+  export PATH="$HOME/.local/bin:$PATH"
   gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
   colima start
-  installer=$(mktemp)
-  trap 'rm -f "$installer"' EXIT
-  gh api -H 'Accept: application/vnd.github.raw+json' \
-    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=3195faf0497d4d300139624ac91d268458afb4e7' > "$installer"
-  python3.12 "$installer" --version v0.1.0-rc.6 \
-    --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
+  source_dir=$(mktemp -d)
+  trap 'rm -rf "$source_dir"' EXIT
+  gh repo clone Siddhant-K-code/agent-harness "$source_dir"
+  git -C "$source_dir" checkout --detach 8ac4a146a83b94c69f1737b00d0d7a59d11acdd9
+  make -C "$source_dir" install
+  harness version
+  harness init "$HOME/harness-demo"
+  cd "$HOME/harness-demo"
+  docker pull node:22-alpine
+  harness trace setup --python python3.12
+  harness auth status >/dev/null 2>&1 || harness auth login
+  harness doctor
+  harness serve --task harness.task.json
 )
 ```
 
-Open the complete local link printed by the server. Setup downloads dependencies and prompts for your key locally; **no paid model request is submitted**. Choose a new setup directory if `~/harness-demo` exists. Add `--force` only to replace an existing CLI. Keep `~/.local/bin` on your shell's PATH for later use.
+Open the complete local link printed by the server. Setup downloads dependencies and prompts for your key locally; **no paid model request is submitted**. Choose a new setup directory if `~/harness-demo` exists. `make install` installs or replaces `~/.local/bin/harness`; keep that directory on your shell's PATH for later use. If Docker Desktop is already running, omit `docker colima` from the Homebrew command and omit `colima start`.
 
-The bootstrap is pinned to a source commit and verifies **project-signed archives before extraction**. These builds are not Apple-notarized. Repository access is needed while the repository is private. [Linux, existing Docker and minimal installation](docs/getting-started.md#complete-local-setup) · [Signature verification](docs/release-verification.md).
+The signed-binary installer is implemented and tested; its download command becomes usable when rc.6 is published. It verifies **project-signed archives before extraction**. Apple notarization is not provided. [Linux and minimal source installation](docs/getting-started.md#install-from-source) · [Signed binary installation status](docs/getting-started.md#install-a-binary) · [Signature verification](docs/release-verification.md).
 
 ## See it work
 
@@ -64,16 +71,16 @@ The web app runs on **your computer**: `harness serve` starts the local server a
 | You need | When |
 | --- | --- |
 | macOS or Linux, Git, and a browser | Required; native archives cover Intel/AMD and ARM. Windows binaries are not shipped. |
-| The installed `harness` CLI | Required. [Install a signed archive](docs/getting-started.md#install-a-binary) or [build from source](docs/getting-started.md#install-from-source). |
+| The installed `harness` CLI | Required. [Build from source now](docs/getting-started.md#install-from-source); [signed binary downloads are pending](docs/getting-started.md#install-a-binary). |
 | Your OpenAI API key, API billing/model access, and internet access | To submit questions or coding tasks. Inference runs through OpenAI. |
 | A running Docker daemon and the task's image | For local coding runs. Read-only project questions do not need Docker. |
 
 The signed installer needs Python 3.9+, OpenSSL and authenticated `gh` with repository access. Once installed, the core CLI/web app needs no Python, Node, npm or Go runtime. Native AgentTrace additionally uses Python 3.12+. MCP and AWS are separately configured integrations.
 
-After installing the CLI:
+If you used the complete setup command above, the app is already running. For a minimal CLI-only installation, prepare a new project with:
 
 ```sh
-harness auth login
+harness auth status >/dev/null 2>&1 || harness auth login
 harness init harness-demo
 cd harness-demo
 harness serve --task harness.task.json
@@ -98,7 +105,7 @@ harness doctor                 # Unpaid configuration checks
 harness run                    # Real, billable coding run
 harness list
 harness status RUN_ID
-harness trace setup            # Optional native AgentTrace dependency
+harness trace setup --python python3.12  # Once per task; skip if complete setup installed it
 harness trace RUN_ID
 ```
 
