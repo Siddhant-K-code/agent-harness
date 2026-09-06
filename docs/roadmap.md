@@ -28,7 +28,11 @@ The [full AWS adapter](aws-harness.md) now implements durable artifact transfer,
 
 Acceptance: a real task produces a verified patch and AgentTrace evidence remotely; interrupted runs and cleanup are accounted for. If required capabilities cannot be enforced, evaluate Fargate rather than reducing guarantees silently.
 
-## 4. Distill and ContextLab experiments
+## 4. Compaction, skills, and evaluated learning — implemented
+
+Budgeted working-memory compaction preserves task/skills, recent tool continuity and verifier feedback, with source manifests and checkpoints. Explicit repository-scoped skills are content-addressed and pinned per run. Persistent observations feed real model-generated candidates. Paired repeated runs with a holdout gate promotion and permit rollback; `harness learn cycle` performs one bounded iteration. See [the implementation guide](compaction-and-learning.md). A three-task installable lab exercises the full path; broader evaluation is still required before claiming general gains.
+
+## 4b. Distill and ContextLab experiments — pending
 
 Add `internal/context` with source manifests and an optional Distill Go adapter. Protect task requirements and provider protocol items. Compare unchanged retrieval, exact deduplication, and compression; add semantic embeddings with explicit configuration and cost accounting. ContextLab consumes manifests offline.
 
@@ -42,7 +46,7 @@ Deliver the outbox incrementally with per-sink cursors, idempotency, partial-wri
 
 Acceptance: forged/expired authority, revocation, out-of-scope resources, broker bypass, and sink outages have tested outcomes.
 
-## 6. Repeated evaluation and LLMTraceFX comparison
+## 6. Repeated evaluation — implemented; broader corpus / LLMTraceFX adapter — pending
 
 Expand to 20–30 real tasks and repeated runs within a separately approved budget. Implement a whole-workflow evidence adapter; keep inference benchmarks separate. Record verified success, cost including failures, latency, repairs, recovery, and missing measurements. Consider ThinkBudget experiments where providers support the necessary control.
 

@@ -51,6 +51,20 @@ Settings are stored in `harness.task.json`. The same flags work on `init`, `run`
 
 Configured models include GPT-5.4, GPT-5.4-mini, and their pinned snapshots. Use `harness models` for IDs and capacity limits. [Model configuration](docs/getting-started.md#model-and-context-settings) explains validation, long-context pricing, and overflow behavior.
 
+## Compaction and evaluated learning
+
+New tasks enable budgeted context compaction and local observations. Import and explicitly select versioned skills, then improve them through real paired evaluations with a holdout, immutable verifier copies, promotion checks, and rollback.
+
+```sh
+harness learn init learning-lab
+cd learning-lab
+harness skills import --id repair --repo repo --file SKILL.md
+harness run --task words.task.json --skill repair
+harness learn cycle --repo repo --skill repair --suite suite.json --max-usd 1.30
+```
+
+Setup is unpaid; the subsequent commands use your OpenAI key. The cycle performs one bounded iteration. Candidates that fail the gate remain inactive. See [configuration, budgets, evidence, and limitations](docs/compaction-and-learning.md). This implements an improvement mechanism, not a claim of general self-improving performance.
+
 ## Use your repository
 
 Create a separate task directory from a local repository and your own verifier:

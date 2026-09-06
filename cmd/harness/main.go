@@ -43,6 +43,10 @@ func run(args []string) error {
 		return modelsCommand(args[1:])
 	case "config":
 		return configCommand(args[1:])
+	case "skills":
+		return skillsCommand(args[1:])
+	case "learn":
+		return learnCommand(args[1:])
 	case "trace":
 		if len(args) > 1 && args[1] == "setup" {
 			return traceSetup(args[2:])
@@ -57,10 +61,12 @@ func run(args []string) error {
 	traceOutput, tracePython, traceContent := new(string), new(string), new(bool)
 	jsonOutput := new(bool)
 	var models modelFlags
+	var features *featureFlags
 	if args[0] == "run" || args[0] == "doctor" {
 		keyFile = f.String("api-key-file", "", "private key file (OPENAI_API_KEY takes precedence)")
 		taskFile = f.String("task", "harness.task.json", "task JSON file")
 		models = bindModelFlags(f, false)
+		features = bindFeatureFlags(f)
 	}
 	if args[0] == "doctor" {
 		jsonOutput = f.Bool("json", false, "emit machine-readable diagnostics")
@@ -95,6 +101,9 @@ func run(args []string) error {
 			return fmt.Errorf("load task: %w; use harness init for a demo or --task PATH", err)
 		}
 		models.apply(f, &spec)
+		if _, err := features.apply(f, &spec); err != nil {
+			return err
+		}
 		key, keyErr := credentials.Resolve(*keyFile, root)
 		if args[0] == "doctor" {
 			return doctor(ctx, spec, root, key, keyErr, *jsonOutput)

@@ -96,6 +96,36 @@ func TestProjectionPreservesConfiguredSnapshotAndContext(t *testing.T) {
 	}
 }
 
+func TestCompactionAndSkillMetadataDoNotExportTheirContent(t *testing.T) {
+	r, events := fixture(t)
+	events[2].Data = json.RawMessage(`{"purpose":"compaction","input_tokens":10}`)
+	last := events[len(events)-1]
+	events = events[:len(events)-1]
+	for _, item := range []struct {
+		kind string
+		data any
+	}{
+		{"skill.loaded", map[string]any{"id": "repair", "version": strings.Repeat("b", 64), "source": "learned", "instructions": canary}},
+		{"context.compacted", map[string]any{"accepted": true, "before_tokens": 100, "after_tokens": 50, "summary": canary, "source": canary}},
+	} {
+		b, _ := json.Marshal(item.data)
+		events = append(events, store.Event{RunID: r.ID, Sequence: len(events) + 1, Type: item.kind, Data: b, CreatedAt: r.CreatedAt.Add(time.Duration(len(events)+1) * time.Second)})
+	}
+	last.Sequence = len(events) + 1
+	last.CreatedAt = r.CreatedAt.Add(time.Duration(last.Sequence) * time.Second)
+	events = append(events, last)
+	r.Revision = len(events)
+	r.UpdatedAt = last.CreatedAt
+	p, err := Build(r, events, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(p)
+	if bytes.Contains(b, []byte(canary)) || !bytes.Contains(b, []byte(`"purpose":"compaction"`)) || !bytes.Contains(b, []byte(`"before_tokens":100`)) {
+		t.Fatal("new metadata lost or content leaked")
+	}
+}
+
 func TestRejectIncompleteAndMismatchedJournal(t *testing.T) {
 	r, events := fixture(t)
 	if _, err := Build(r, events[:3], false); err == nil {

@@ -1,15 +1,15 @@
 name: Package preview
 on:
   pull_request:
-    paths: ['cmd/harness/**', 'internal/**', 'examples/normalize-tags/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
   push:
     branches: [main]
-    paths: ['cmd/harness/**', 'internal/**', 'examples/normalize-tags/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
   workflow_dispatch:
     inputs:
       version:
-        description: Version for the private preview (for example v0.1.0-rc.2)
-        default: v0.1.0-rc.2
+        description: Version for the private preview (for example v0.1.0-rc.3)
+        default: v0.1.0-rc.3
         required: true
       draft_release:
         description: Create a draft prerelease after all package checks pass
@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check credential and task setup behavior
-        run: go test -race ./cmd/harness ./internal/credentials ./internal/scaffold ./internal/model
+        run: go test -race ./cmd/harness ./internal/credentials ./internal/scaffold ./internal/model ./internal/skills ./internal/learning ./internal/evaluation ./internal/contextwindow ./internal/runner
       - name: Build archive and dependency notices
         run: sh scripts/package.sh "$PACKAGE_VERSION" "${{ matrix.os }}" "${{ matrix.arch }}"
       - name: Install and exercise the native archive (no model or AWS calls)

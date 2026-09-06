@@ -89,7 +89,7 @@ func configCommand(args []string) error {
 		args = []string{"show"}
 	}
 	if args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(os.Stdout, "Usage: harness config show|set [--task PATH] [--model ID] [--context-window TOKENS] [--max-output-tokens TOKENS] [--max-total-tokens TOKENS] [--max-usd USD]\nSettings are saved in the task JSON. show previews overrides; set persists them. No API calls or key access.")
+		fmt.Fprintln(os.Stdout, "Usage: harness config show|set [--task PATH] [--model ID] [--context-window TOKENS] [--max-output-tokens TOKENS] [--max-total-tokens TOKENS] [--max-usd USD] [--compaction] [--learn] [--skill ID]\nUse config set --help for all flags. Settings are saved in the task JSON. show previews overrides; set persists them. No API calls or key access.")
 		return nil
 	}
 	action := args[0]
@@ -99,6 +99,7 @@ func configCommand(args []string) error {
 	f := flag.NewFlagSet("config "+action, flag.ContinueOnError)
 	path := f.String("task", "harness.task.json", "task JSON file to inspect or update")
 	flags := bindModelFlags(f, false)
+	features := bindFeatureFlags(f)
 	if err := f.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -123,13 +124,18 @@ func configCommand(args []string) error {
 		return closeErr
 	}
 	changed := flags.apply(f, &spec)
+	featureChanges, err := features.apply(f, &spec)
+	if err != nil {
+		return err
+	}
+	changed += featureChanges
 	settings, err := model.ResolveSettings(spec)
 	if err != nil {
 		return err
 	}
 	if action == "set" {
 		if changed == 0 {
-			return errors.New("config set requires at least one model/budget flag; use config show to inspect settings")
+			return errors.New("config set requires at least one setting flag; use config show to inspect settings")
 		}
 		spec.Limits.ContextWindowTokens = settings.ContextWindowTokens
 		if err := saveTaskConfig(*path, spec); err != nil {

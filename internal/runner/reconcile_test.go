@@ -251,6 +251,46 @@ func TestReconcileRetainsLongContextCostSchedule(t *testing.T) {
 	}
 }
 
+func TestReconcileCountsAcceptedAndInterruptedCompactions(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	db, err := store.Open(filepath.Join(root, "harness.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	r, err := db.Create(ctx, crashSpec(root, filepath.Join(root, "verify.sh")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.StartOwned(ctx, r.ID, "dead-compactor"); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []struct {
+		kind string
+		data any
+	}{
+		{"model.requested", map[string]any{"purpose": "compaction"}},
+		{"model.responded", map[string]any{"usage": map[string]int64{"input_tokens": 1000, "output_tokens": 100}}},
+		{"context.compacted", map[string]any{"accepted": true}},
+		{"model.requested", map[string]any{"purpose": "compaction"}},
+	} {
+		if _, err := db.RecordOwned(ctx, r.ID, "dead-compactor", e.kind, e.data, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.FinishOwned(ctx, r.ID, "dead-compactor", store.Failed, "interrupted"); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Reconcile(ctx, db, root, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Compactions != 1 || report.CompactionAttempts != 2 || !report.BillingUnknown || report.InputTokens != 1000 || report.OutputTokens != 100 || math.Abs(report.EstimatedUSD-0.004) > 1e-9 {
+		t.Fatal("lost compaction recovery evidence", report)
+	}
+}
+
 func TestReconcileMissingExecutionIsUncertain(t *testing.T) {
 	if os.Getenv("HARNESS_DOCKER_TEST") != "1" {
 		t.Skip("requires real Docker inspection")

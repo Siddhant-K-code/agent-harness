@@ -1,6 +1,6 @@
 # Native integrations and the improvement loop
 
-Design and implementation status, September 5, 2026. The [local runtime](architecture.md) and [AgentTrace batch export](../integrations/agenttrace/README.md) for both local runs and remote command journals are implemented. Other adapters and incremental delivery below remain proposed. This plan follows inspection of the linked projects' code.
+Design and implementation status, September 6, 2026. The [local runtime](architecture.md) and [AgentTrace batch export](../integrations/agenttrace/README.md) for both local runs and remote command journals are implemented. Budgeted compaction, versioned skills, observations, and paired skill evaluation are also [implemented](compaction-and-learning.md). Other adapters and incremental delivery below remain proposed. This plan follows inspection of the linked projects' code.
 
 ## Product direction
 
@@ -69,7 +69,7 @@ Start with retrieved repository/document text. Attach source path, revision, has
 
 Compare unchanged retrieval, exact deduplication, and Distill extraction/compression on the same task corpus. Add semantic deduplication only with an explicit embedding provider, cost accounting, and embedding identity. Keep lossy summarization opt-in. The existing model token-counting and admission logic remains authoritative for spending.
 
-Later adopt scoped memory with provenance and expiry. Model assertions from failed attempts must not become trusted facts automatically. Acceptance: source references survive, protected content is unchanged, and verified completion is reported alongside token savings.
+Scoped skill revisions and observations now have provenance and expiry; broader retrieval memory remains proposed. Model assertions from failed attempts must not become trusted facts automatically. Acceptance: source references survive, protected content is unchanged, and verified completion is reported alongside token savings.
 
 ## 3. agentic-authz and OpenFGA: authorize tool effects
 

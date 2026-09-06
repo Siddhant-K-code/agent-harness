@@ -33,7 +33,7 @@ Our positioning is a narrower workflow choice, not a claim that competitors lack
 
 BYOK is part of the trust model: no harness account or credential proxy, direct provider billing, explicit key precedence, no automatic secret uploads. Current support is OpenAI only. Add a provider only when its token accounting, continuation protocol, failure states, and budget admission are implemented and tested.
 
-AgentTrace is the native inspection layer already integrated. Next, use selected failed runs to identify concrete harness changes: better task context, prepared dependencies, clearer verifier feedback, or tool behavior. Turn those failures into repeatable evaluation tasks; compare a harness revision with the previous one. Traces alone do not create an improvement loop.
+AgentTrace is the native inspection layer already integrated. The evaluated skill loop now uses selected observations to propose and test procedural revisions. The broader next step is to use failed runs to identify concrete harness changes: better task context, prepared dependencies, clearer verifier feedback, or tool behavior. Turn those failures into repeatable evaluation tasks; compare a harness revision with the previous one. Traces alone do not create an improvement loop.
 
 Distill can later prepare smaller, relevant repository context; ThinkBudget can inform budget policy if its contract adds value beyond existing admission checks. These adapters remain planned. Keep integration code behind the task/executor/evidence contracts. Do not add an MCP server with unrestricted network or credentials to the guest to make a capability list longer.
 

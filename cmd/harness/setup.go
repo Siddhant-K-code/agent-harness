@@ -16,6 +16,7 @@ import (
 	traceinstall "github.com/Siddhant-K-code/agent-harness/integrations/agenttrace"
 	"github.com/Siddhant-K-code/agent-harness/internal/credentials"
 	"github.com/Siddhant-K-code/agent-harness/internal/scaffold"
+	"github.com/Siddhant-K-code/agent-harness/internal/task"
 	"golang.org/x/term"
 )
 
@@ -36,6 +37,11 @@ Commands:
   init [flags] [directory]     Create a demo or a task for your own repository
   models [--json]              List configured models and their capacity limits
   config show|set [flags]      Preview or save model, context and budget settings
+  skills import|list|show      Manage repository-scoped, versioned skills
+  skills activate|rollback    Select an imported version or restore a prior one
+  learn list|capture|propose   Inspect observations and propose a skill revision
+  learn evaluate|promote      Compare real runs; promote only a passing revision
+  learn cycle                 Propose, evaluate, and conditionally promote once
   auth login|status|logout     Manage the local OpenAI key; no secret uploads
   doctor [--json]              Check key source, Git, verifier, model and executor
   run                         Execute harness.task.json (override with --task)
@@ -62,6 +68,7 @@ func initCommand(args []string) error {
 	f.StringVar(&o.Image, "image", "", "prepared Docker image; required with --repo")
 	f.StringVar(&o.Verifier, "verifier", "", "independent shell check script; required with --repo")
 	models := bindModelFlags(f, true)
+	features := bindFeatureFlags(f)
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -73,6 +80,14 @@ func initCommand(args []string) error {
 	}
 	o.Model, o.MaxUSD = *models.model, *models.usd
 	o.ContextWindowTokens, o.MaxOutputTokens, o.MaxTotalTokens = models.contextWindow, models.output, models.total
+	policy := task.Spec{Compaction: task.DefaultCompaction(), Learn: true, Limits: task.Limits{MaxOutputTokens: *models.output}}
+	if policy.Compaction.MaxSummaryTokens > *models.output {
+		policy.Compaction.MaxSummaryTokens = *models.output
+	}
+	if _, err := features.apply(f, &policy); err != nil {
+		return err
+	}
+	o.Compaction, o.Learn, o.Skills = policy.Compaction, policy.Learn, policy.Skills
 	o.Directory = f.Arg(0)
 	if o.Directory == "" {
 		o.Directory = "harness-demo"

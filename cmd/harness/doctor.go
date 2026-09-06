@@ -15,6 +15,7 @@ import (
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
 	"github.com/Siddhant-K-code/agent-harness/internal/scaffold"
+	"github.com/Siddhant-K-code/agent-harness/internal/skills"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 )
 
@@ -37,6 +38,14 @@ func doctor(ctx context.Context, spec task.Spec, root string, key credentials.Ke
 		checks = append(checks, diagnostic{name, err == nil, detail})
 	}
 	add("OpenAI key", key.Source+" (presence only; API access not validated)", keyErr)
+	pinned, _, skillErr := (skills.Store{Root: root}).Resolve(spec.Repository, spec.Skills)
+	add("Skills", fmt.Sprintf("%d explicitly selected, repository-scoped versions", len(pinned)), skillErr)
+	compaction := "disabled"
+	if c := spec.Compaction; c != nil {
+		compaction = fmt.Sprintf("at %d%% input capacity; %d recent turns; %d summary tokens; up to %d compactions", c.TriggerPercent, c.KeepRecentTurns, c.MaxSummaryTokens, c.MaxCompactions)
+	}
+	add("Compaction", compaction, nil)
+	add("Learning", fmt.Sprintf("local observation capture: %t; skill promotion requires evaluation", spec.Learn), nil)
 	settings, err := model.ResolveSettings(spec)
 	add("Model", fmt.Sprintf("%s; estimated model budget $%.2f per run", spec.Model, spec.Limits.MaxUSD), err)
 	if err == nil {

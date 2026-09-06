@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Siddhant-K-code/agent-harness/internal/skills"
 )
 
 const MaxFileBytes = 1 << 20
@@ -35,17 +37,33 @@ func (l Limits) ContextWindow() int64 {
 }
 
 type Spec struct {
-	Backend       string     `json:"backend,omitempty"`
-	AWS           *AWSConfig `json:"aws,omitempty"`
-	SchemaVersion int        `json:"schema_version"`
-	Name          string     `json:"name"`
-	Goal          string     `json:"goal"`
-	Repository    string     `json:"repository"`
-	Ref           string     `json:"ref"`
-	Model         string     `json:"model"`
-	Image         string     `json:"image"`
-	Verifier      string     `json:"verifier"`
-	Limits        Limits     `json:"limits"`
+	Compaction    *Compaction  `json:"compaction,omitempty"`
+	Skills        []skills.Ref `json:"skills,omitempty"`
+	Learn         bool         `json:"learn,omitempty"`
+	Backend       string       `json:"backend,omitempty"`
+	AWS           *AWSConfig   `json:"aws,omitempty"`
+	SchemaVersion int          `json:"schema_version"`
+	Name          string       `json:"name"`
+	Goal          string       `json:"goal"`
+	Repository    string       `json:"repository"`
+	Ref           string       `json:"ref"`
+	Model         string       `json:"model"`
+	Image         string       `json:"image"`
+	Verifier      string       `json:"verifier"`
+	Limits        Limits       `json:"limits"`
+}
+
+// Compaction is an explicit bounded summarization policy. Omission disables it
+// for existing tasks; newly scaffolded tasks opt in.
+type Compaction struct {
+	TriggerPercent   int   `json:"trigger_percent"`
+	KeepRecentTurns  int   `json:"keep_recent_turns"`
+	MaxSummaryTokens int64 `json:"max_summary_tokens"`
+	MaxCompactions   int   `json:"max_compactions"`
+}
+
+func DefaultCompaction() *Compaction {
+	return &Compaction{TriggerPercent: 75, KeepRecentTurns: 1, MaxSummaryTokens: 1024, MaxCompactions: 4}
 }
 
 type AWSConfig struct {
@@ -96,6 +114,24 @@ func Decode(r io.Reader) (Spec, error) {
 	return s, s.Validate()
 }
 func (s Spec) Validate() error {
+	if len(s.Skills) > 8 {
+		return errors.New("at most eight selected skills")
+	}
+	seen := map[string]bool{}
+	for _, ref := range s.Skills {
+		if err := ref.Validate(); err != nil {
+			return err
+		}
+		if seen[ref.ID] {
+			return errors.New("duplicate selected skill")
+		}
+		seen[ref.ID] = true
+	}
+	if c := s.Compaction; c != nil {
+		if c.TriggerPercent < 10 || c.TriggerPercent > 90 || c.KeepRecentTurns < 1 || c.KeepRecentTurns > 10 || c.MaxSummaryTokens < 256 || c.MaxSummaryTokens > s.Limits.MaxOutputTokens || c.MaxCompactions < 1 || c.MaxCompactions > 20 {
+			return errors.New("compaction requires trigger_percent 10..90, keep_recent_turns 1..10, max_summary_tokens 256..max_output_tokens, max_compactions 1..20")
+		}
+	}
 	if s.Backend != "" && s.Backend != "docker" && s.Backend != "agentcore" {
 		return errors.New("backend must be docker or agentcore")
 	}

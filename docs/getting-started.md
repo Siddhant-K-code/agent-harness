@@ -87,7 +87,7 @@ Explicit run/doctor flags override task values for that invocation only. Unspeci
 | `--max-total-tokens` | Cumulative input and output across all requests, including repeated history. | 50,000 |
 | `--max-usd` | Estimated model cost budget across the run. | $0.50 |
 
-For a 128,000-token window with 4,096 output tokens, at most 123,904 input tokens can be admitted. The API token counter includes the submitted conversation, instructions and tool definitions. If that count no longer fits, the runner stops before generation and keeps its recorded artifacts. It does not truncate history or perform automatic compaction. A larger window is a ceiling, not a request to fill the window. The total-token and dollar budgets can stop a run before it reaches that ceiling.
+For a 128,000-token window with 4,096 output tokens, at most 123,904 input tokens can be admitted. The API token counter includes the submitted conversation, instructions and tool definitions. If that count no longer fits, the runner stops before generation and keeps its recorded artifacts. Tasks with compaction enabled first attempt bounded summarization of older complete exchanges. Existing tasks without a compaction policy retain the stop-on-overflow behavior. See [compaction, skills, and evaluated learning](compaction-and-learning.md). A larger window is a ceiling, not a request to fill the window. The total-token and dollar budgets can stop a run before it reaches that ceiling.
 
 The optional task field is `limits.context_window_tokens`. Existing tasks without it (or with `0`) use a 200,000-token **combined** window. This is slightly stricter than the old hardcoded 200,000-input limit because output now also consumes window space. Context must be 1,024 tokens or more and fit the chosen model. Output must be 256..128,000 and smaller than the window. The cumulative token ceiling is 10,000,000; this is a harness bound, separate from model capacity.
 
@@ -103,6 +103,10 @@ These are OpenAI's documented capacities, not guarantees of access through a par
 GPT-5.4 applies higher session rates when input exceeds 272,000 tokens. If `context-window - max-output-tokens` can exceed that threshold, the harness estimates **every request from the start** at $5 input / $22.50 output per million tokens, conservatively covering a later threshold crossing. Otherwise it uses $2.50 / $15; mini uses $0.75 / $4.50. This may overestimate actual charges for a short run with a large configured window. `doctor`, `config show`, reports, and request events expose the pricing basis. Reconciliation retains the selected schedule through the recorded task configuration. These remain estimates, not invoice reconciliation.
 
 For other model families/providers, a configured protocol, capacity and price schedule is required. Unknown IDs fail rather than applying GPT-5.4's assumptions to a different model. Arbitrary provider URLs or user-defined prices are not supported in this preview.
+
+## Compaction, skills, and learning
+
+New tasks enable budgeted compaction and local observation capture. Use `harness config set --compaction=false --learn=false` to disable them. Skills require explicit import and selection. `harness learn init learning-lab` creates a complete unpaid lab; its subsequent coding and evaluation commands use your API key. See [the complete workflow and limits](compaction-and-learning.md). The release archive also includes `COMPACTION-AND-LEARNING.md`.
 
 ## Bring your own key
 

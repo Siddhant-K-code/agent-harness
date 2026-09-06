@@ -32,6 +32,10 @@ The controller owns credentials, budget admission, lifecycle transitions, Git hi
 
 `internal/store` uses SQLite WAL with synchronous FULL and BEGIN IMMEDIATE transactions. State, event, and outbox rows commit together. Cancellation requested before a terminal write wins over completion. SIGINT/SIGTERM also cancel the worker. Docker cleanup uses a separate deadline because killing a CLI client does not necessarily stop its container.
 
+## Context and evaluated skills
+
+`internal/contextwindow` preserves the task, pinned skills, latest verifier feedback and recent complete tool exchanges while older visible exchanges are summarized through a budgeted model request. `internal/skills` stores immutable repository-scoped revisions. `internal/learning` captures observations and proposes inactive revisions; `internal/evaluation` runs paired real tasks and gates promotion on verification and measured improvement. See [configuration, evidence, and limits](compaction-and-learning.md).
+
 ## Data
 
 Run states: `queued → running → completed | failed | timed_out | cancelled`, with `cancelling` as the operator-requested intermediate state. A queued cancellation finishes immediately. `completed` requires verifier success and successful patch capture.
@@ -44,6 +48,6 @@ The final patch includes tracked changes, deletions, new files, binary changes, 
 
 ## Current limits
 
-This is a local single-worker runtime. It has local process ownership, renewable leases, durable execution references, paired checkpoints, and explicit crash reconciliation. It lacks automatic resume, distributed worker takeover, disk quotas, model compaction, and production-grade adversarial verification. See [recovery](recovery.md). SQLite outbox rows are durable but are not yet delivered incrementally. Terminal runs can be [exported into AgentTrace](../integrations/agenttrace/README.md) using a pinned native Python bridge. Export allowlists metadata, optionally redacts selected content, preserves coverage gaps, and atomically publishes a checksummed session. The private recovery journal is unchanged; raw artifacts are not automatically safe to share.
+This is a local single-worker runtime. It has local process ownership, renewable leases, durable execution references, paired checkpoints, and explicit crash reconciliation. It lacks automatic resume, distributed worker takeover, disk quotas, and production-grade adversarial verification. See [recovery](recovery.md). SQLite outbox rows are durable but are not yet delivered incrementally. Terminal runs can be [exported into AgentTrace](../integrations/agenttrace/README.md) using a pinned native Python bridge. Export allowlists metadata, optionally redacts selected content, preserves coverage gaps, and atomically publishes a checksummed session. The private recovery journal is unchanged; raw artifacts are not automatically safe to share.
 
 API references: [Responses](https://developers.openai.com/api/docs/guides/migrate-to-responses), [function calling](https://developers.openai.com/api/docs/guides/function-calling), [Docker execution](https://docs.docker.com/engine/containers/run/).

@@ -54,7 +54,7 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 	var lastVerificationPassed bool
 	settings, priceErr := model.ResolveSettings(r.Spec)
 	price := settings.Price()
-	report = Report{RunID: r.ID, Model: r.Spec.Model, BillingUnknown: priceErr != nil, Reconciled: true}
+	report = Report{RunID: r.ID, Model: r.Spec.Model, BillingUnknown: priceErr != nil, Reconciled: true, Skills: r.Spec.Skills}
 	if priceErr == nil {
 		report.ModelSettings = &settings
 	}
@@ -72,6 +72,16 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 	report.Backend = executor.Capabilities().Backend
 	for _, event := range events {
 		switch event.Type {
+		case "context.compacted":
+			var d struct {
+				Accepted bool `json:"accepted"`
+			}
+			if err := json.Unmarshal(event.Data, &d); err != nil {
+				return report, err
+			}
+			if d.Accepted {
+				report.Compactions++
+			}
 		case "execution.prepared":
 			var d struct {
 				ExecutionID string `json:"execution_id"`
@@ -112,6 +122,15 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 			report.ImageID = d.Image
 			report.VerifierSHA256 = d.Verifier
 		case "model.requested":
+			var d struct {
+				Purpose string `json:"purpose"`
+			}
+			if err := json.Unmarshal(event.Data, &d); err != nil {
+				return report, err
+			}
+			if d.Purpose == "compaction" {
+				report.CompactionAttempts++
+			}
 			pending = true
 		case "model.responded":
 			var d struct {

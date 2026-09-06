@@ -132,3 +132,15 @@ func TestConfiguredSnapshotAndOutputReachBothAPIEndpoints(t *testing.T) {
 		t.Fatal("unexpected provider requests", requests.Load())
 	}
 }
+
+func TestReplyRequiresBothUsageFields(t *testing.T) {
+	for _, raw := range []string{`{}`, `{"usage":{"input_tokens":1}}`, `{"usage":{"output_tokens":1}}`, `{"usage":{"input_tokens":0,"output_tokens":0}}`} {
+		if (Reply{Raw: json.RawMessage(raw)}).HasUsage() {
+			t.Fatal("missing/invalid usage accepted")
+		}
+	}
+	r := Reply{Raw: json.RawMessage(`{"usage":{"input_tokens":100,"output_tokens":0}}`), Usage: responses.ResponseUsage{InputTokens: 100, OutputTokens: 0}}
+	if !r.HasUsage() {
+		t.Fatal("valid zero output rejected")
+	}
+}

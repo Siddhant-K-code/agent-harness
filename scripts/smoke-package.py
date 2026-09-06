@@ -111,6 +111,25 @@ with tempfile.TemporaryDirectory(prefix="harness-package-") as temporary:
     run(binary, "init", "--model", "gpt-5.4-mini", "--context-window", "64000", "--max-output-tokens", "4096", "--max-total-tokens", "200000", "configured-demo")
     initialized = json.loads((root / "configured-demo" / "harness.task.json").read_text())
     assert initialized["limits"]["context_window_tokens"] == 64000 and initialized["limits"]["max_output_tokens"] == 4096
+    # Exercise feature setup through the actual installed binary; no API calls.
+    assert task["learn"] and task["compaction"]["keep_recent_turns"] == 1
+    run(binary, "config", "set", "--compaction=false", "--learn=false", cwd=demo)
+    run(binary, "config", "set", "--compaction", "--compact-at-percent", "80", "--learn", cwd=demo)
+    run(binary, "config", "set", "--keep-recent-turns", "0", cwd=demo, ok=False)
+    run(binary, "learn", "init", "learning lab")
+    lab = root / "learning lab"
+    imported = json.loads(run(binary, "skills", "import", "--repo", "repo", "--id", "repair", "--file", "SKILL.md", cwd=lab))
+    selected = json.loads(run(binary, "config", "set", "--task", "words.task.json", "--skill", "repair@" + imported["version"], cwd=lab))
+    assert selected["task"]["skills"][0]["version"] == imported["version"]
+    assert json.loads(run(binary, "skills", "show", imported["version"], cwd=lab))["source"] == "imported"
+    (lab / "SKILL.md").write_text((lab / "SKILL.md").read_text() + "\nCheck empty inputs.\n")
+    second = json.loads(run(binary, "skills", "import", "--repo", "repo", "--id", "repair", "--file", "SKILL.md", cwd=lab))
+    assert second["version"] != imported["version"]
+    restored = json.loads(run(binary, "skills", "rollback", "--repo", "repo", "--id", "repair", cwd=lab))
+    assert restored["active"] == imported["version"]
+    assert json.loads(run(binary, "learn", "list", cwd=lab)) == {}
+    run(binary, "learn", "cycle", "--repo", "repo", "--skill", "repair", "--suite", "suite.json", cwd=lab, ok=False)
+    assert not (lab / ".harness" / "runs").exists()
     # An unpriced model must fail diagnostics, without ever calling the provider.
     task["model"] = "unpriced-model"
     (demo / "harness.task.json").write_text(json.dumps(task))
@@ -121,4 +140,4 @@ with tempfile.TemporaryDirectory(prefix="harness-package-") as temporary:
     run(binary, "auth", "logout")
     assert not key_path.exists()
     run(binary, "auth", "status", ok=False)
-print("PASS: native package install/upgrade, corruption rejection, CLI setup, local BYOK privacy, real Git tasks, model/context configuration, unpaid diagnostics")
+print("PASS: native package install/upgrade, corruption rejection, CLI setup, local BYOK privacy, real Git tasks, model/context configuration, skills/rollback, learning lab setup, unpaid diagnostics")

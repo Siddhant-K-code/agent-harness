@@ -17,6 +17,7 @@ source_commit=$(git rev-parse HEAD)
 CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" go build -trimpath -ldflags "-s -w -X main.version=$version -X main.commit=$source_commit" -o "$staging/harness" ./cmd/harness
 cp scripts/install.sh "$staging/install.sh"
 cp docs/getting-started.md "$staging/GETTING-STARTED.md"
+cp docs/compaction-and-learning.md "$staging/COMPACTION-AND-LEARNING.md"
 cp DISTRIBUTION.md "$staging/DISTRIBUTION.md"
 cp go.mod "$staging/go.mod"
 printf '%s/%s\n' "$target_os" "$target_arch" > "$staging/platform.txt"

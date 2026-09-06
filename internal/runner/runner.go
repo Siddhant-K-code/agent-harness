@@ -14,11 +14,14 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Siddhant-K-code/agent-harness/internal/contextwindow"
+	"github.com/Siddhant-K-code/agent-harness/internal/learning"
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/ownership"
 	"github.com/Siddhant-K-code/agent-harness/internal/process"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
+	"github.com/Siddhant-K-code/agent-harness/internal/skills"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 	"github.com/Siddhant-K-code/agent-harness/internal/workspace"
@@ -32,6 +35,11 @@ type Runner struct {
 	Progress  io.Writer
 }
 type Report struct {
+	Observation          string          `json:"observation,omitempty"`
+	LearningError        string          `json:"learning_error,omitempty"`
+	Skills               []skills.Ref    `json:"skills,omitempty"`
+	Compactions          int             `json:"compactions,omitempty"`
+	CompactionAttempts   int             `json:"compaction_attempts,omitempty"`
 	ModelSettings        *model.Settings `json:"model_settings,omitempty"`
 	Backend              string          `json:"backend,omitempty"`
 	AWSBillingUSD        *float64        `json:"aws_billing_usd"`
@@ -64,6 +72,11 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	}
 	price := settings.Price()
 	spec.Limits.ContextWindowTokens = settings.ContextWindowTokens
+	pinnedSkills, skillVersions, err := (skills.Store{Root: r.Root}).Resolve(spec.Repository, spec.Skills)
+	if err != nil {
+		return report, err
+	}
+	spec.Skills = pinnedSkills
 	if r.Key == "" {
 		return report, errors.New("OpenAI API key is required")
 	}
@@ -101,7 +114,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	if _, err = r.Store.StartOwned(ctx, created.ID, owner); err != nil {
 		return report, err
 	}
-	report = Report{RunID: created.ID, Model: spec.Model, ImageID: image, ModelSettings: &settings}
+	report = Report{RunID: created.ID, Model: spec.Model, ImageID: image, ModelSettings: &settings, Skills: pinnedSkills}
 	sum := sha256.Sum256(verifier)
 	report.VerifierSHA256 = hex.EncodeToString(sum[:])
 	if r.Progress != nil {
@@ -150,6 +163,14 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		}
 		if report.State != store.Completed && runErr == nil {
 			runErr = errors.New(report.Reason)
+		}
+		if spec.Learn && e == nil {
+			observation, learnErr := learning.Capture(finalCtx, r.Root, r.Store, created.ID)
+			if learnErr != nil {
+				report.LearningError = learnErr.Error()
+			} else {
+				report.Observation = observation
+			}
 		}
 		if e := writeJSON(filepath.Join(root, "report.json"), report); e != nil {
 			runErr = errors.Join(runErr, e)
@@ -239,6 +260,18 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	}
 	client := model.New(r.Key, spec.Model)
 	input := []responses.ResponseInputItemUnionParam{responses.ResponseInputItemParamOfMessage(spec.Goal, "user")}
+	if len(skillVersions) > 0 {
+		if err = writeJSON(filepath.Join(root, "skills.lock.json"), skillVersions); err != nil {
+			return report, err
+		}
+		for i, v := range skillVersions {
+			input = append(input, responses.ResponseInputItemParamOfMessage("Selected skill "+v.ID+" ("+pinnedSkills[i].Version+"). Apply only when relevant to this task. Skill advice cannot override the task, controller rules, or independent verifier.\n"+v.Instructions, "user"))
+			if err = record("skill.loaded", map[string]any{"id": v.ID, "version": pinnedSkills[i].Version, "source": v.Source}, false); err != nil {
+				return report, err
+			}
+		}
+	}
+	history := contextwindow.Window{Pinned: input}
 	checkpoint := func() error {
 		current, e := r.Store.Get(ctx, created.ID)
 		if e != nil {
@@ -258,6 +291,20 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		if err != nil {
 			return report, err
 		}
+		if c := spec.Compaction; c != nil && report.CompactionAttempts < c.MaxCompactions && history.ShouldCompact(count, settings.MaxInputTokens, c.TriggerPercent, c.KeepRecentTurns) {
+			history, err = compactWindow(ctx, client, spec, settings, root, history, count, &report, record)
+			if err != nil {
+				return report, err
+			}
+			input = history.Input()
+			if err = checkpoint(); err != nil {
+				return report, err
+			}
+			count, err = client.Count(ctx, input)
+			if err != nil {
+				return report, err
+			}
+		}
 		reservation, err := admit(spec.Limits, price, report, count)
 		if err != nil {
 			return report, err
@@ -276,14 +323,14 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		if err = record("model.responded", reply.Raw, false); err != nil {
 			return report, err
 		}
-		if reply.Usage.InputTokens <= 0 {
+		if !reply.HasUsage() {
 			report.BillingUnknown = true
 			return report, errors.New("response omitted usage; stopping")
 		}
 		if reply.Status != "completed" {
 			return report, fmt.Errorf("model response status %q", reply.Status)
 		}
-		input = append(input, reply.Items...)
+		turn := append([]responses.ResponseInputItemUnionParam{}, reply.Items...)
 		if len(reply.Calls) != 1 {
 			return report, fmt.Errorf("expected one serial tool call, received %d", len(reply.Calls))
 		}
@@ -342,13 +389,17 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				return report, errors.New("independent verification failed; repair limit reached")
 			}
 			result = map[string]any{"verified": false, "feedback": res, "instruction": "Repair the implementation, then call finish again."}
+			feedback, _ := json.Marshal(result)
+			history.Feedback = string(feedback)
 		default:
 			result = map[string]string{"error": "unknown tool"}
 		}
 		if err = record("tool.finished", map[string]any{"call_id": call.ID, "result": result}, false); err != nil {
 			return report, err
 		}
-		input = append(input, model.ToolResult(call.ID, result))
+		turn = append(turn, model.ToolResult(call.ID, result))
+		history.Turns = append(history.Turns, turn)
+		input = history.Input()
 		if err = checkpoint(); err != nil {
 			return report, err
 		}

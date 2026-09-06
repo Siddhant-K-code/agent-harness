@@ -33,6 +33,16 @@ type Reply struct {
 }
 type Price struct{ Input, Output float64 }
 
+func (r Reply) HasUsage() bool {
+	var raw struct {
+		Usage *struct {
+			Input  *int64 `json:"input_tokens"`
+			Output *int64 `json:"output_tokens"`
+		} `json:"usage"`
+	}
+	return json.Unmarshal(r.Raw, &raw) == nil && raw.Usage != nil && raw.Usage.Input != nil && raw.Usage.Output != nil && *raw.Usage.Input > 0 && *raw.Usage.Output >= 0 && *raw.Usage.Input == r.Usage.InputTokens && *raw.Usage.Output == r.Usage.OutputTokens
+}
+
 // Standard text pricing per million tokens, checked 2026-09-05 against the
 // official model pages. Input is charged at the uncached rate conservatively.
 // This initial version refuses models without an explicit price schedule.

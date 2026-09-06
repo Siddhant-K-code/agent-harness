@@ -162,6 +162,10 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			side["data"] = v
 		case "checkpoint.saved":
 			side["data"] = fields(d, "source_sequence", "workspace_sha256")
+		case "skill.loaded":
+			side["data"] = fields(d, "id", "version", "source")
+		case "context.compacted":
+			side["data"] = fields(d, "source_sha256", "summary_sha256", "before_tokens", "after_tokens", "accepted", "retained_turns")
 		case "worker.renewed":
 			side["data"] = map[string]any{"renewal_recorded": true}
 		case "model.requested":
@@ -170,7 +174,7 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			}
 			e.Type = "llm_request"
 			e.Data["model"] = modelName
-			h["admission"] = fields(d, "input_tokens", "max_output_tokens", "reserved_usd", "context_window_tokens", "pricing_basis")
+			h["admission"] = fields(d, "input_tokens", "max_output_tokens", "reserved_usd", "context_window_tokens", "pricing_basis", "purpose")
 			copy := e
 			modelPending = &copy
 			requests++

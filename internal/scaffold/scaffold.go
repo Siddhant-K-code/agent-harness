@@ -12,10 +12,14 @@ import (
 	normalizetags "github.com/Siddhant-K-code/agent-harness/examples/normalize-tags"
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/process"
+	"github.com/Siddhant-K-code/agent-harness/internal/skills"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
 )
 
 type Options struct {
+	Compaction                                               *task.Compaction
+	Learn                                                    bool
+	Skills                                                   []skills.Ref
 	Directory, Repository, Ref, Goal, Image, Verifier, Model string
 	MaxUSD                                                   float64
 	ContextWindowTokens, MaxOutputTokens, MaxTotalTokens     *int64
@@ -39,6 +43,7 @@ func Create(ctx context.Context, o Options) (string, error) {
 		return "", err
 	}
 	s.Backend, s.Model, s.Limits.MaxUSD = "docker", o.Model, o.MaxUSD
+	s.Compaction, s.Learn, s.Skills = o.Compaction, o.Learn, o.Skills
 	if o.ContextWindowTokens != nil {
 		s.Limits.ContextWindowTokens = *o.ContextWindowTokens
 	}
