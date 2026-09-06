@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Siddhant-K-code/agent-harness/internal/credentials"
+	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/runner"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
@@ -38,6 +39,10 @@ func run(args []string) error {
 		return initCommand(args[1:])
 	case "auth":
 		return authCommand(args[1:])
+	case "models":
+		return modelsCommand(args[1:])
+	case "config":
+		return configCommand(args[1:])
 	case "trace":
 		if len(args) > 1 && args[1] == "setup" {
 			return traceSetup(args[2:])
@@ -51,9 +56,11 @@ func run(args []string) error {
 	keyFile, taskFile := new(string), new(string)
 	traceOutput, tracePython, traceContent := new(string), new(string), new(bool)
 	jsonOutput := new(bool)
+	var models modelFlags
 	if args[0] == "run" || args[0] == "doctor" {
 		keyFile = f.String("api-key-file", "", "private key file (OPENAI_API_KEY takes precedence)")
 		taskFile = f.String("task", "harness.task.json", "task JSON file")
+		models = bindModelFlags(f, false)
 	}
 	if args[0] == "doctor" {
 		jsonOutput = f.Bool("json", false, "emit machine-readable diagnostics")
@@ -87,9 +94,14 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("load task: %w; use harness init for a demo or --task PATH", err)
 		}
+		models.apply(f, &spec)
 		key, keyErr := credentials.Resolve(*keyFile, root)
 		if args[0] == "doctor" {
 			return doctor(ctx, spec, root, key, keyErr, *jsonOutput)
+		}
+		settings, err := model.ResolveSettings(spec)
+		if err != nil {
+			return err
 		}
 		if keyErr != nil {
 			return keyErr
@@ -100,6 +112,7 @@ func run(args []string) error {
 		}
 		defer db.Close()
 		fmt.Fprintf(os.Stderr, "Running %s with %s; estimated model budget $%.2f. Artifacts: %s\n", spec.Name, spec.Model, spec.Limits.MaxUSD, root)
+		fmt.Fprintf(os.Stderr, "Context: %d tokens including %d reserved output; total run tokens: %d; pricing: %s\n", settings.ContextWindowTokens, settings.MaxOutputTokens, settings.MaxTotalTokens, settings.PricingBasis)
 		report, runErr := (runner.Runner{Store: db, Root: root, Key: key.Value, Progress: os.Stderr}).Run(ctx, spec)
 		return errors.Join(runErr, encode(report))
 	}

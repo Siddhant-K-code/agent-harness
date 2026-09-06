@@ -37,6 +37,20 @@ harness trace RUN_ID
 
 Results go to stdout, progress to stderr. Flags go before a run ID. State defaults to `.harness` in the current directory; use `--state-dir PATH` consistently when working elsewhere. Failed runs exit nonzero.
 
+## Choose the model and context
+
+```sh
+harness models
+harness config set --model gpt-5.4-mini --context-window 128000 \
+  --max-output-tokens 4096 --max-total-tokens 250000
+harness config show
+harness run
+```
+
+Settings are stored in `harness.task.json`. The same flags work on `init`, `run`, and `doctor`; run/doctor overrides do not modify the task file. A context window is the **input plus reserved output for one request**. `max-total-tokens` is a separate cumulative budget across the run. Model capacity is an upper bound, and choosing a larger window does not automatically supply more context or compact the conversation.
+
+Configured models include GPT-5.4, GPT-5.4-mini, and their pinned snapshots. Use `harness models` for IDs and capacity limits. [Model configuration](docs/getting-started.md#model-and-context-settings) explains validation, long-context pricing, and overflow behavior.
+
 ## Use your repository
 
 Create a separate task directory from a local repository and your own verifier:
@@ -64,7 +78,7 @@ The [first complete AWS run](docs/evidence/2026-09-05/aws-harness/README.md) use
 
 Each run stores `.harness/runs/RUN_ID/report.json`, `changes.patch`, the working copy, a private Git database, and the verifier snapshot. SQLite stores ordered model/tool/lifecycle events and an outbox in the same transaction as each state change. `model.responded` includes the real API response, usage, and response ID. Treat these local artifacts as sensitive: repository content and tool output can appear in them. Export is manual; automatic redaction is not implemented.
 
-Before every generation request, the controller calls OpenAI's input-token counting endpoint, then checks the remaining token budget and reserves the maximum possible output cost. Pricing is explicitly configured for GPT-5.4 and GPT-5.4-mini using the [official model pages](https://developers.openai.com/api/docs/models/gpt-5.4), checked September 5, 2026. Input is conservatively priced as uncached. Requests use the standard service tier and stop below long-context pricing thresholds. Unknown model prices fail closed. Cost reports are estimates based on that schedule, not invoice reconciliation or account-wide spending limits. An interrupted request can have unknown billing; it is not retried automatically.
+Before every generation request, the controller calls OpenAI's input-token counting endpoint, then checks the remaining token budget and reserves the maximum possible output cost. Pricing and capacity are configured for GPT-5.4, GPT-5.4-mini, and their listed snapshots using the [official model pages](https://developers.openai.com/api/docs/models/gpt-5.4), checked September 6, 2026. Input is conservatively priced as uncached. Requests use the standard service tier. A GPT-5.4 configuration that can exceed 272,000 input tokens uses the higher rates for every request from the start; this is an upper-bound estimate even if the actual run stays short. Reports record the effective settings and pricing basis, and reconciliation uses the recorded task configuration. Unknown model prices fail closed. Cost reports are estimates based on that schedule, not invoice reconciliation or account-wide spending limits. An interrupted request can have unknown billing; it is not retried automatically.
 
 Containers run without networking, capabilities, a Docker socket, host credentials, or the host home directory. Root filesystems are read-only; CPU, memory, PID count, runtime, and captured output are bounded. Only the disposable workspace is bind-mounted. Commands run as a non-root UID. Docker isolation shares a kernel and is not a multi-tenant security boundary. Workspace disk quotas remain future work. AWS microVM execution is available through the explicit agentcore backend.
 

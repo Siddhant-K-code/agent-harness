@@ -32,35 +32,38 @@ type Runner struct {
 	Progress  io.Writer
 }
 type Report struct {
-	Backend              string      `json:"backend,omitempty"`
-	AWSBillingUSD        *float64    `json:"aws_billing_usd"`
-	RunID                string      `json:"run_id"`
-	State                store.State `json:"state"`
-	Reason               string      `json:"reason"`
-	Model                string      `json:"model"`
-	BaseCommit           string      `json:"base_commit"`
-	ImageID              string      `json:"image_id"`
-	VerifierSHA256       string      `json:"verifier_sha256"`
-	InputTokens          int64       `json:"input_tokens"`
-	OutputTokens         int64       `json:"output_tokens"`
-	EstimatedUSD         float64     `json:"estimated_usd_uncached"`
-	BillingUnknown       bool        `json:"billing_unknown"`
-	Verified             bool        `json:"verified"`
-	VerificationAttempts int         `json:"verification_attempts"`
-	Patch                string      `json:"patch,omitempty"`
-	Reconciled           bool        `json:"reconciled,omitempty"`
-	CleanupConfirmed     bool        `json:"cleanup_confirmed,omitempty"`
-	CheckpointAvailable  bool        `json:"checkpoint_available,omitempty"`
+	ModelSettings        *model.Settings `json:"model_settings,omitempty"`
+	Backend              string          `json:"backend,omitempty"`
+	AWSBillingUSD        *float64        `json:"aws_billing_usd"`
+	RunID                string          `json:"run_id"`
+	State                store.State     `json:"state"`
+	Reason               string          `json:"reason"`
+	Model                string          `json:"model"`
+	BaseCommit           string          `json:"base_commit"`
+	ImageID              string          `json:"image_id"`
+	VerifierSHA256       string          `json:"verifier_sha256"`
+	InputTokens          int64           `json:"input_tokens"`
+	OutputTokens         int64           `json:"output_tokens"`
+	EstimatedUSD         float64         `json:"estimated_usd_uncached"`
+	BillingUnknown       bool            `json:"billing_unknown"`
+	Verified             bool            `json:"verified"`
+	VerificationAttempts int             `json:"verification_attempts"`
+	Patch                string          `json:"patch,omitempty"`
+	Reconciled           bool            `json:"reconciled,omitempty"`
+	CleanupConfirmed     bool            `json:"cleanup_confirmed,omitempty"`
+	CheckpointAvailable  bool            `json:"checkpoint_available,omitempty"`
 }
 
 func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runErr error) {
 	if err := spec.Validate(); err != nil {
 		return report, err
 	}
-	price, err := model.Pricing(spec.Model)
+	settings, err := model.ResolveSettings(spec)
 	if err != nil {
 		return report, err
 	}
+	price := settings.Price()
+	spec.Limits.ContextWindowTokens = settings.ContextWindowTokens
 	if r.Key == "" {
 		return report, errors.New("OpenAI API key is required")
 	}
@@ -98,7 +101,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 	if _, err = r.Store.StartOwned(ctx, created.ID, owner); err != nil {
 		return report, err
 	}
-	report = Report{RunID: created.ID, Model: spec.Model, ImageID: image}
+	report = Report{RunID: created.ID, Model: spec.Model, ImageID: image, ModelSettings: &settings}
 	sum := sha256.Sum256(verifier)
 	report.VerifierSHA256 = hex.EncodeToString(sum[:])
 	if r.Progress != nil {
@@ -259,7 +262,7 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		if err != nil {
 			return report, err
 		}
-		if err = record("model.requested", map[string]any{"input_tokens": count, "reserved_usd": reservation, "max_output_tokens": spec.Limits.MaxOutputTokens}, true); err != nil {
+		if err = record("model.requested", map[string]any{"input_tokens": count, "reserved_usd": reservation, "max_output_tokens": spec.Limits.MaxOutputTokens, "context_window_tokens": settings.ContextWindowTokens, "pricing_basis": settings.PricingBasis}, true); err != nil {
 			return report, err
 		}
 		reply, err := client.Next(ctx, input, spec.Limits.MaxOutputTokens)
@@ -371,8 +374,11 @@ func readVerifier(path string) ([]byte, error) {
 
 // Admit reserves the largest possible next response before any paid generation.
 func admit(limits task.Limits, price model.Price, report Report, input int64) (float64, error) {
-	if input <= 0 || input > 200000 {
-		return 0, errors.New("input token count outside supported context limits")
+	if input <= 0 {
+		return 0, errors.New("input token counter returned no input")
+	}
+	if input > limits.ContextWindow()-limits.MaxOutputTokens {
+		return 0, fmt.Errorf("context window exhausted: %d input tokens plus %d reserved output exceeds %d; increase --context-window within model limits or reduce task context", input, limits.MaxOutputTokens, limits.ContextWindow())
 	}
 	reservation := price.Cost(input, limits.MaxOutputTokens)
 	if report.EstimatedUSD+reservation > limits.MaxUSD {

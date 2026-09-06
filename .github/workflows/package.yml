@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version for the private preview (for example v0.1.0-rc.1)
-        default: v0.1.0-rc.1
+        description: Version for the private preview (for example v0.1.0-rc.2)
+        default: v0.1.0-rc.2
         required: true
       draft_release:
         description: Create a draft prerelease after all package checks pass

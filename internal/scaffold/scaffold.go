@@ -18,6 +18,7 @@ import (
 type Options struct {
 	Directory, Repository, Ref, Goal, Image, Verifier, Model string
 	MaxUSD                                                   float64
+	ContextWindowTokens, MaxOutputTokens, MaxTotalTokens     *int64
 }
 
 // Git ignores host hooks, filters and credential helpers during local setup.
@@ -38,6 +39,15 @@ func Create(ctx context.Context, o Options) (string, error) {
 		return "", err
 	}
 	s.Backend, s.Model, s.Limits.MaxUSD = "docker", o.Model, o.MaxUSD
+	if o.ContextWindowTokens != nil {
+		s.Limits.ContextWindowTokens = *o.ContextWindowTokens
+	}
+	if o.MaxOutputTokens != nil {
+		s.Limits.MaxOutputTokens = *o.MaxOutputTokens
+	}
+	if o.MaxTotalTokens != nil {
+		s.Limits.MaxTotalTokens = *o.MaxTotalTokens
+	}
 	s.Repository, s.Ref, s.Verifier = "repo", "HEAD", "harness.verify.sh"
 	verifier, _ := normalizetags.Files.ReadFile("verify.sh")
 	if o.Repository != "" {
@@ -70,9 +80,11 @@ func Create(ctx context.Context, o Options) (string, error) {
 	if err := s.Validate(); err != nil {
 		return "", err
 	}
-	if _, err := model.Pricing(s.Model); err != nil {
+	settings, err := model.ResolveSettings(s)
+	if err != nil {
 		return "", err
 	}
+	s.Limits.ContextWindowTokens = settings.ContextWindowTokens
 	dir, err := filepath.Abs(o.Directory)
 	if err != nil {
 		return "", err

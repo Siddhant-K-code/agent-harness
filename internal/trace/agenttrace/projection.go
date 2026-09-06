@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 )
 
@@ -123,9 +124,8 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 	var started *time.Time
 	var inputTokens, outputTokens float64
 	var requests, toolCount, missingUsage int
-	knownModels := map[string]bool{"gpt-5.4": true, "gpt-5.4-mini": true}
 	modelName := "unrecognized"
-	if knownModels[run.Spec.Model] {
+	if _, err := model.Lookup(run.Spec.Model); err == nil {
 		modelName = run.Spec.Model
 	}
 	for i, source := range events {
@@ -170,7 +170,7 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			}
 			e.Type = "llm_request"
 			e.Data["model"] = modelName
-			h["admission"] = fields(d, "input_tokens", "max_output_tokens", "reserved_usd")
+			h["admission"] = fields(d, "input_tokens", "max_output_tokens", "reserved_usd", "context_window_tokens", "pricing_basis")
 			copy := e
 			modelPending = &copy
 			requests++

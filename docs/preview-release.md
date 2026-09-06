@@ -1,14 +1,17 @@
 Delegate a coding task. Review a verified patch.
 
-This private preview packages the real harness as a CLI for macOS and Linux on amd64 and arm64. Each archive includes the bundled task, local installer, setup documentation, binary checksum, source commit, and third-party notices. No Go compiler is required on the user's machine.
+This private preview adds configurable models and context windows to the packaged CLI:
 
-- `harness init` creates a real demo, or a task for an existing Git repository with a pinned ref and separate verifier.
-- `harness auth login` takes hidden input and stores an owner-only local key. Environment BYOK and existing task-local key files remain supported. Setup never uploads a key to GitHub.
-- `harness doctor` explains missing prerequisites without calling a model. `harness run` uses `harness.task.json` by default; generated tasks start with GPT-5.4 and a $0.50 estimated model budget.
-- `harness trace setup` installs the optional pinned native AgentTrace dependency without a source checkout.
+- `harness models` lists configured model IDs, snapshots and capacity limits.
+- `harness config show` displays or previews effective settings. `harness config set` saves validated changes to the task JSON without changing relative repository/verifier paths.
+- `init`, `run`, and `doctor` accept `--model`, `--context-window`, `--max-output-tokens`, `--max-total-tokens`, and `--max-usd`. Run/doctor overrides are temporary.
+- Request admission reserves output inside the selected context window and checks the separate cumulative token/dollar budgets. Context overflow stops before generation; there is no silent truncation or automatic compaction.
+- GPT-5.4 configurations capable of entering the long-context pricing tier use conservative higher estimates from the first request. Reports and recovery retain the effective configuration and pricing basis.
 
-Download the archive for your platform and `checksums.txt`. Verify the archive, extract it, and run the included `install.sh`; see `GETTING-STARTED.md`. Then use `harness init` to begin. Git and a running Docker daemon are required for the local demo. OpenAI API charges begin only when you run the task.
+The preview also includes local BYOK login with hidden input, a bundled real demo, diagnostics, optional native AgentTrace setup, and checksummed macOS/Linux archives for amd64/arm64. No Go compiler is needed to use a release binary. Git and a running Docker daemon are required for the local demo. Setup does not upload keys or call a model.
 
-Validation: the package workflow installs and exercises the actual archive on all four native targets, including credential privacy/precedence, real Git setup, duplicate-install refusal, and corruption rejection. No model or AWS calls are part of this workflow. Previously recorded real model/AWS verification evidence is linked in the repository README; packaging does not imply a new paid run or a broader benchmark result.
+Download the matching archive and `checksums.txt`, verify the archive, extract it, and run its `install.sh`. See `GETTING-STARTED.md` for the full instructions. Existing tasks default to a 200,000-token combined context window; output now counts toward this limit. Newly initialized tasks retain the $0.50 estimated model budget.
 
-Distribution remains private and the project license is undecided. This is a draft for evaluation, not a public release. Binaries are not Apple-notarized. OpenAI is the only implemented provider; Docker is the simple default, while AWS needs the documented advanced setup.
+Validation covers context/output boundaries, model capacities, long-context budget admission, recovery pricing, exact provider model IDs, native trace projection, and archive installation/configuration on all four native targets. No new paid model/AWS run or large-context coding benchmark is claimed.
+
+Distribution remains private and the project license is undecided. This draft is for evaluation, not a public release. Binaries are not Apple-notarized. OpenAI is the only implemented provider; Docker is the simple default, while AWS requires the documented advanced setup.

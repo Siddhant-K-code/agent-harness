@@ -52,8 +52,12 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 	prepared := map[string]bool{}
 	var pending bool
 	var lastVerificationPassed bool
-	price, priceErr := model.Pricing(r.Spec.Model)
+	settings, priceErr := model.ResolveSettings(r.Spec)
+	price := settings.Price()
 	report = Report{RunID: r.ID, Model: r.Spec.Model, BillingUnknown: priceErr != nil, Reconciled: true}
+	if priceErr == nil {
+		report.ModelSettings = &settings
+	}
 	var executor sandbox.Executor = sandbox.Docker{}
 	if r.Spec.Backend == "agentcore" {
 		if err := r.Spec.Validate(); err != nil {

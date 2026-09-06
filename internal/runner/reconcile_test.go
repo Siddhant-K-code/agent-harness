@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -213,6 +214,40 @@ func TestReconcileTerminalWithoutReport(t *testing.T) {
 	}
 	if _, err = Reconcile(ctx, db, root, r.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestReconcileRetainsLongContextCostSchedule(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	db, err := store.Open(filepath.Join(root, "harness.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	spec := crashSpec(root, filepath.Join(root, "verify.sh"))
+	spec.Model = "gpt-5.4-2026-03-05"
+	spec.Limits.ContextWindowTokens = 400000
+	spec.Limits.MaxTotalTokens = 1000000
+	r, err := db.Create(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.StartOwned(ctx, r.ID, "dead-worker"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RecordOwned(ctx, r.ID, "dead-worker", "model.responded", map[string]any{"usage": map[string]int64{"input_tokens": 300000, "output_tokens": 10}}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.FinishOwned(ctx, r.ID, "dead-worker", store.Failed, "test interrupted outcome"); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Reconcile(ctx, db, root, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.ModelSettings == nil || report.ModelSettings.PricingBasis != "long_context_uncached_upper_bound" || math.Abs(report.EstimatedUSD-1.500225) > 1e-9 {
+		t.Fatalf("recovery underpriced configured run: %+v", report)
 	}
 }
 

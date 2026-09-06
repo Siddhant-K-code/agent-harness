@@ -37,8 +37,12 @@ func doctor(ctx context.Context, spec task.Spec, root string, key credentials.Ke
 		checks = append(checks, diagnostic{name, err == nil, detail})
 	}
 	add("OpenAI key", key.Source+" (presence only; API access not validated)", keyErr)
-	_, err := model.Pricing(spec.Model)
+	settings, err := model.ResolveSettings(spec)
 	add("Model", fmt.Sprintf("%s; estimated model budget $%.2f per run", spec.Model, spec.Limits.MaxUSD), err)
+	if err == nil {
+		add("Context", fmt.Sprintf("%d total = up to %d input + %d reserved output tokens; %d tokens across the run", settings.ContextWindowTokens, settings.MaxInputTokens, settings.MaxOutputTokens, settings.MaxTotalTokens), nil)
+		add("Pricing", fmt.Sprintf("%s: $%.2f input / $%.2f output per million tokens", settings.PricingBasis, settings.InputUSDPerMillion, settings.OutputUSDPerMillion), nil)
+	}
 	base, err := scaffold.Git(ctx, spec.Repository, "rev-parse", "--verify", "--end-of-options", spec.Ref+"^{commit}")
 	add("Git commit", base+"; only committed files will be copied", err)
 	if err == nil {
@@ -89,7 +93,7 @@ func doctor(ctx context.Context, spec task.Spec, root string, key credentials.Ke
 	}
 	add("Local state", filepath.Clean(root), err)
 	if asJSON {
-		result := map[string]any{"ready": len(failures) == 0, "key_configured": keyErr == nil, "credential": key, "api_validated": false, "backend": backend, "image_id": image, "model": spec.Model, "max_usd": spec.Limits.MaxUSD, "checks": checks}
+		result := map[string]any{"ready": len(failures) == 0, "key_configured": keyErr == nil, "credential": key, "api_validated": false, "backend": backend, "image_id": image, "model": spec.Model, "max_usd": spec.Limits.MaxUSD, "checks": checks, "model_settings": settings}
 		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
 			return err
 		}

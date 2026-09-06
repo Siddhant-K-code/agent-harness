@@ -78,6 +78,24 @@ func TestProjectionCoverageAndCorrelation(t *testing.T) {
 	}
 }
 
+func TestProjectionPreservesConfiguredSnapshotAndContext(t *testing.T) {
+	r, events := fixture(t)
+	r.Spec.Model = "gpt-5.4-mini-2026-03-17"
+	events[2].Data = json.RawMessage(`{"input_tokens":10,"max_output_tokens":4096,"reserved_usd":0.02,"context_window_tokens":128000,"pricing_basis":"standard_uncached"}`)
+	p, err := Build(r, events, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := p.Events[1]
+	if request.Data["model"] != r.Spec.Model {
+		t.Fatal("snapshot ID lost in native projection")
+	}
+	admission := request.Data["harness"].(map[string]any)["admission"].(map[string]any)
+	if admission["context_window_tokens"] != float64(128000) || admission["pricing_basis"] != "standard_uncached" {
+		t.Fatal("configuration missing from trace")
+	}
+}
+
 func TestRejectIncompleteAndMismatchedJournal(t *testing.T) {
 	r, events := fixture(t)
 	if _, err := Build(r, events[:3], false); err == nil {

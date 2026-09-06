@@ -12,16 +12,28 @@ import (
 )
 
 const MaxFileBytes = 1 << 20
+const DefaultContextWindowTokens int64 = 200000
 
 type Limits struct {
-	MaxSteps        int     `json:"max_steps"`
-	TimeoutMS       int     `json:"timeout_ms"`
-	ToolTimeoutMS   int     `json:"tool_timeout_ms"`
-	MaxOutputTokens int64   `json:"max_output_tokens"`
-	MaxTotalTokens  int64   `json:"max_total_tokens"`
-	MaxRepairs      int     `json:"max_repairs"`
-	MaxUSD          float64 `json:"max_usd"`
+	ContextWindowTokens int64   `json:"context_window_tokens,omitempty"`
+	MaxSteps            int     `json:"max_steps"`
+	TimeoutMS           int     `json:"timeout_ms"`
+	ToolTimeoutMS       int     `json:"tool_timeout_ms"`
+	MaxOutputTokens     int64   `json:"max_output_tokens"`
+	MaxTotalTokens      int64   `json:"max_total_tokens"`
+	MaxRepairs          int     `json:"max_repairs"`
+	MaxUSD              float64 `json:"max_usd"`
 }
+
+// ContextWindow includes the complete request input and reserved output.
+// Existing task files without this optional field use the documented default.
+func (l Limits) ContextWindow() int64 {
+	if l.ContextWindowTokens == 0 {
+		return DefaultContextWindowTokens
+	}
+	return l.ContextWindowTokens
+}
+
 type Spec struct {
 	Backend       string     `json:"backend,omitempty"`
 	AWS           *AWSConfig `json:"aws,omitempty"`
@@ -121,11 +133,14 @@ func (s Spec) Validate() error {
 	if l.ToolTimeoutMS < 100 || l.ToolTimeoutMS > l.TimeoutMS {
 		return errors.New("tool_timeout_ms must be 100..timeout_ms")
 	}
-	if l.MaxOutputTokens < 256 || l.MaxOutputTokens > 16384 {
-		return errors.New("max_output_tokens must be 256..16384")
+	if l.ContextWindowTokens < 0 || l.ContextWindow() < 1024 || l.ContextWindow() > 1050000 {
+		return errors.New("context_window_tokens must be 1024..1050000 (omitted or 0 uses 200000); model limits also apply")
 	}
-	if l.MaxTotalTokens < l.MaxOutputTokens || l.MaxTotalTokens > 1000000 {
-		return errors.New("max_total_tokens must be max_output_tokens..1000000")
+	if l.MaxOutputTokens < 256 || l.MaxOutputTokens > 128000 || l.MaxOutputTokens >= l.ContextWindow() {
+		return errors.New("max_output_tokens must be 256..128000 and smaller than the context window")
+	}
+	if l.MaxTotalTokens < l.MaxOutputTokens || l.MaxTotalTokens > 10000000 {
+		return errors.New("max_total_tokens must be max_output_tokens..10000000")
 	}
 	if l.MaxRepairs < 0 || l.MaxRepairs > 5 {
 		return errors.New("max_repairs must be 0..5")

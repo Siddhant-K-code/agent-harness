@@ -37,14 +37,8 @@ type Price struct{ Input, Output float64 }
 // official model pages. Input is charged at the uncached rate conservatively.
 // This initial version refuses models without an explicit price schedule.
 func Pricing(model string) (Price, error) {
-	switch model {
-	case "gpt-5.4":
-		return Price{2.50, 15}, nil
-	case "gpt-5.4-mini":
-		return Price{0.75, 4.50}, nil
-	default:
-		return Price{}, fmt.Errorf("model %q has no configured price schedule", model)
-	}
+	p, err := Lookup(model)
+	return Price{p.InputUSDPerMillion, p.OutputUSDPerMillion}, err
 }
 func (p Price) Cost(input, output int64) float64 {
 	return (float64(input)*p.Input + float64(output)*p.Output) / 1e6
@@ -100,7 +94,8 @@ func (c Client) Count(ctx context.Context, input []responses.ResponseInputItemUn
 }
 func (c Client) Next(ctx context.Context, input []responses.ResponseInputItemUnionParam, maxOutput int64) (Reply, error) {
 	r, err := c.API.Responses.New(ctx, responses.ResponseNewParams{
-		Model: shared.ResponsesModel(c.Model), Instructions: openai.String(Instructions), Input: responses.ResponseNewParamsInputUnion{OfInputItemList: input}, Tools: tools(), ParallelToolCalls: openai.Bool(false), MaxOutputTokens: openai.Int(maxOutput), Store: openai.Bool(false), Include: []responses.ResponseIncludable{"reasoning.encrypted_content"}, Reasoning: shared.ReasoningParam{Effort: shared.ReasoningEffortLow}, ServiceTier: responses.ResponseNewParamsServiceTierDefault,
+		Truncation: responses.ResponseNewParamsTruncationDisabled,
+		Model:      shared.ResponsesModel(c.Model), Instructions: openai.String(Instructions), Input: responses.ResponseNewParamsInputUnion{OfInputItemList: input}, Tools: tools(), ParallelToolCalls: openai.Bool(false), MaxOutputTokens: openai.Int(maxOutput), Store: openai.Bool(false), Include: []responses.ResponseIncludable{"reasoning.encrypted_content"}, Reasoning: shared.ReasoningParam{Effort: shared.ReasoningEffortLow}, ServiceTier: responses.ResponseNewParamsServiceTierDefault,
 	})
 	if err != nil {
 		return Reply{}, safeError("create response", err)

@@ -34,6 +34,8 @@ First run (Git and a running Docker daemon required):
 
 Commands:
   init [flags] [directory]     Create a demo or a task for your own repository
+  models [--json]              List configured models and their capacity limits
+  config show|set [flags]      Preview or save model, context and budget settings
   auth login|status|logout     Manage the local OpenAI key; no secret uploads
   doctor [--json]              Check key source, Git, verifier, model and executor
   run                         Execute harness.task.json (override with --task)
@@ -59,8 +61,7 @@ func initCommand(args []string) error {
 	f.StringVar(&o.Goal, "goal", "", "coding task to complete; required with --repo")
 	f.StringVar(&o.Image, "image", "", "prepared Docker image; required with --repo")
 	f.StringVar(&o.Verifier, "verifier", "", "independent shell check script; required with --repo")
-	f.StringVar(&o.Model, "model", "gpt-5.4", "priced OpenAI model: gpt-5.4 or gpt-5.4-mini")
-	f.Float64Var(&o.MaxUSD, "max-usd", 0.50, "maximum estimated model cost per run in USD")
+	models := bindModelFlags(f, true)
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -70,6 +71,8 @@ func initCommand(args []string) error {
 	if f.NArg() > 1 {
 		return errors.New("init takes at most one new directory; put flags first")
 	}
+	o.Model, o.MaxUSD = *models.model, *models.usd
+	o.ContextWindowTokens, o.MaxOutputTokens, o.MaxTotalTokens = models.contextWindow, models.output, models.total
 	o.Directory = f.Arg(0)
 	if o.Directory == "" {
 		o.Directory = "harness-demo"

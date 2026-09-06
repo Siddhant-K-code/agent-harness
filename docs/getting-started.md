@@ -9,13 +9,13 @@ Download the archive matching your computer from the repository's [Releases page
 For an accessible preview release, this example uses GitHub CLI on Apple Silicon. Change `darwin_arm64` to `darwin_amd64`, `linux_amd64`, or `linux_arm64` as needed:
 
 ```sh
-gh release download v0.1.0-rc.1 --repo Siddhant-K-code/agent-harness \
-  --pattern 'agent-harness_v0.1.0-rc.1_darwin_arm64.tar.gz' \
+gh release download v0.1.0-rc.2 --repo Siddhant-K-code/agent-harness \
+  --pattern 'agent-harness_v0.1.0-rc.2_darwin_arm64.tar.gz' \
   --pattern 'checksums.txt' --dir harness-download
 cd harness-download
 shasum -a 256 --ignore-missing -c checksums.txt
 mkdir bundle
-tar -xzf agent-harness_v0.1.0-rc.1_darwin_arm64.tar.gz -C bundle
+tar -xzf agent-harness_v0.1.0-rc.2_darwin_arm64.tar.gz -C bundle
 sh bundle/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 harness version
@@ -55,9 +55,58 @@ The default directory must not already exist. Choose another with `harness init 
 
 Successful output includes `run_id`, `verified`, `cleanup_confirmed`, `estimated_usd_uncached`, and `patch`. Open the patch path to review the changes. Reports and events remain under `.harness`; your source checkout is unchanged. A failed verifier can trigger a bounded repair attempt. Failure, cancellation, exhausted budgets, or unconfirmed cleanup exit nonzero.
 
+## Model and context settings
+
+Inspect the configured OpenAI models and set values for the current task:
+
+```sh
+harness models
+harness config set --model gpt-5.4-mini \
+  --context-window 128000 --max-output-tokens 4096 \
+  --max-total-tokens 250000 --max-usd 0.50
+harness config show
+```
+
+`config set` validates and atomically updates `harness.task.json`, preserving repository/verifier paths and other task fields. `config show` prints the task and effective limits/pricing without accessing your key or calling an API. Adding flags to `config show` previews a change without saving it. Invalid combinations fail without changing the file. `--task PATH` selects a different task.
+
+The same settings can be chosen during setup or overridden for one run:
+
+```sh
+harness init --model gpt-5.4 --context-window 128000 my-task
+harness doctor --model gpt-5.4-mini --context-window 64000
+harness run --model gpt-5.4-mini --context-window 64000
+```
+
+Explicit run/doctor flags override task values for that invocation only. Unspecified flags retain the task's settings. Changing models does not silently enlarge or clamp the context; choose a compatible window explicitly if the new model has a smaller capacity.
+
+| Setting | Meaning | New-task default |
+| --- | --- | --- |
+| `--model` | Exact provider model ID; aliases and listed snapshots are accepted. | `gpt-5.4` |
+| `--context-window` | Total tokens for one request: complete counted input plus the maximum reserved output. | 200,000 |
+| `--max-output-tokens` | Maximum output per request, including reasoning tokens. | 2,048 |
+| `--max-total-tokens` | Cumulative input and output across all requests, including repeated history. | 50,000 |
+| `--max-usd` | Estimated model cost budget across the run. | $0.50 |
+
+For a 128,000-token window with 4,096 output tokens, at most 123,904 input tokens can be admitted. The API token counter includes the submitted conversation, instructions and tool definitions. If that count no longer fits, the runner stops before generation and keeps its recorded artifacts. It does not truncate history or perform automatic compaction. A larger window is a ceiling, not a request to fill the window. The total-token and dollar budgets can stop a run before it reaches that ceiling.
+
+The optional task field is `limits.context_window_tokens`. Existing tasks without it (or with `0`) use a 200,000-token **combined** window. This is slightly stricter than the old hardcoded 200,000-input limit because output now also consumes window space. Context must be 1,024 tokens or more and fit the chosen model. Output must be 256..128,000 and smaller than the window. The cumulative token ceiling is 10,000,000; this is a harness bound, separate from model capacity.
+
+Configured capacities, checked September 6, 2026:
+
+| Model / snapshot | Maximum context | Maximum output |
+| --- | --- | --- |
+| `gpt-5.4`, `gpt-5.4-2026-03-05` | 1,050,000 | 128,000 |
+| `gpt-5.4-mini`, `gpt-5.4-mini-2026-03-17` | 400,000 | 128,000 |
+
+These are OpenAI's documented capacities, not guarantees of access through a particular API key. The catalog does not query your account. Sources: [GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4), [GPT-5.4-mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini). Live coding evidence currently covers GPT-5.4 on the small recorded fixture; other IDs and large windows have configuration/protocol tests, not new paid benchmark results.
+
+GPT-5.4 applies higher session rates when input exceeds 272,000 tokens. If `context-window - max-output-tokens` can exceed that threshold, the harness estimates **every request from the start** at $5 input / $22.50 output per million tokens, conservatively covering a later threshold crossing. Otherwise it uses $2.50 / $15; mini uses $0.75 / $4.50. This may overestimate actual charges for a short run with a large configured window. `doctor`, `config show`, reports, and request events expose the pricing basis. Reconciliation retains the selected schedule through the recorded task configuration. These remain estimates, not invoice reconciliation.
+
+For other model families/providers, a configured protocol, capacity and price schedule is required. Unknown IDs fail rather than applying GPT-5.4's assumptions to a different model. Arbitrary provider URLs or user-defined prices are not supported in this preview.
+
 ## Bring your own key
 
-The current provider is **OpenAI Responses**, with explicit price schedules for `gpt-5.4` and `gpt-5.4-mini`. There is no Anthropic, local-model, or arbitrary OpenAI-compatible endpoint support yet. BYOK means your OpenAI account is billed directly, without a harness proxy.
+The current provider is **OpenAI Responses**, with explicit price schedules for `gpt-5.4`, `gpt-5.4-mini`, and the listed pinned snapshots. There is no Anthropic, local-model, or arbitrary OpenAI-compatible endpoint support yet. BYOK means your OpenAI account is billed directly, without a harness proxy.
 
 Choose either:
 

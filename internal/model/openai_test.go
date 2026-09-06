@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -80,5 +82,53 @@ func TestKeyFilePermissionsAndUnknownPricing(t *testing.T) {
 	}
 	if _, err := Pricing("unknown"); err == nil {
 		t.Fatal("unknown model pricing accepted")
+	}
+}
+
+func TestConfiguredSnapshotAndOutputReachBothAPIEndpoints(t *testing.T) {
+	spec := settingSpec(t)
+	spec.Model = "gpt-5.4-mini-2026-03-17"
+	spec.Limits.ContextWindowTokens = 128000
+	spec.Limits.MaxOutputTokens = 4096
+	settings, err := ResolveSettings(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		if body["model"] != settings.Model {
+			t.Error("configured snapshot was replaced")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "input_tokens") {
+			fmt.Fprint(w, `{"input_tokens":100,"object":"response.input_tokens"}`)
+		} else {
+			if body["truncation"] != "disabled" {
+				t.Error("provider truncation must remain disabled")
+			}
+			if body["max_output_tokens"] != float64(4096) {
+				t.Error("output setting was not sent")
+			}
+			fmt.Fprint(w, `{"id":"resp_protocol","status":"completed","output":[],"usage":{"input_tokens":100,"output_tokens":10,"total_tokens":110}}`)
+		}
+	}))
+	defer server.Close()
+	client := New("protocol-test-key", settings.Model)
+	client.API = openai.NewClient(option.WithBaseURL(server.URL+"/"), option.WithAPIKey("protocol-test-key"), option.WithMaxRetries(0))
+	input := []responses.ResponseInputItemUnionParam{responses.ResponseInputItemParamOfMessage("test model settings", "user")}
+	if _, err := client.Count(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Next(context.Background(), input, settings.MaxOutputTokens); err != nil {
+		t.Fatal(err)
+	}
+	if requests.Load() != 2 {
+		t.Fatal("unexpected provider requests", requests.Load())
 	}
 }

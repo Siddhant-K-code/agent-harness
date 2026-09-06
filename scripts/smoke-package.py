@@ -90,6 +90,27 @@ with tempfile.TemporaryDirectory(prefix="harness-package-") as temporary:
     run(binary, "init", "--repo", str(demo / "repo"), "--goal", "Fix tags", "--image", "node:22-alpine", "--verifier", str(demo / "harness.verify.sh"), "own-task")
     own = json.loads((root / "own-task" / "harness.task.json").read_text())
     assert len(own["ref"]) == 40
+    catalog = json.loads(run(binary, "models", "--json"))
+    assert {p["id"]: p["context_window_tokens"] for p in catalog}["gpt-5.4-mini"] == 400000
+    before_config = (demo / "harness.task.json").read_bytes()
+    preview = json.loads(run(binary, "config", "show", "--model", "gpt-5.4-mini", "--context-window", "128000", cwd=demo))
+    assert preview["effective"]["model"] == "gpt-5.4-mini" and not preview["saved"]
+    assert (demo / "harness.task.json").read_bytes() == before_config
+    configured = json.loads(run(binary, "config", "set", "--model", "gpt-5.4-mini-2026-03-17", "--context-window", "128000", "--max-output-tokens", "4096", "--max-total-tokens", "250000", cwd=demo))
+    assert configured["saved"] and configured["effective"]["max_input_tokens"] == 123904
+    saved = json.loads((demo / "harness.task.json").read_text())
+    assert saved["repository"] == "repo" and saved["verifier"] == "harness.verify.sh"
+    before_config = (demo / "harness.task.json").read_bytes()
+    for flags in [("--context-window", "500000"), ("--max-output-tokens", "128000"), ("--max-total-tokens", "1"), ("--model", "unknown")]:
+        run(binary, "config", "set", *flags, cwd=demo, ok=False)
+        assert (demo / "harness.task.json").read_bytes() == before_config
+    # Invalid per-run overrides are rejected before creating a run database.
+    run(binary, "run", "--context-window", "500000", cwd=demo, ok=False)
+    assert not (demo / ".harness" / "harness.db").exists()
+    assert (demo / "harness.task.json").read_bytes() == before_config
+    run(binary, "init", "--model", "gpt-5.4-mini", "--context-window", "64000", "--max-output-tokens", "4096", "--max-total-tokens", "200000", "configured-demo")
+    initialized = json.loads((root / "configured-demo" / "harness.task.json").read_text())
+    assert initialized["limits"]["context_window_tokens"] == 64000 and initialized["limits"]["max_output_tokens"] == 4096
     # An unpriced model must fail diagnostics, without ever calling the provider.
     task["model"] = "unpriced-model"
     (demo / "harness.task.json").write_text(json.dumps(task))
@@ -100,4 +121,4 @@ with tempfile.TemporaryDirectory(prefix="harness-package-") as temporary:
     run(binary, "auth", "logout")
     assert not key_path.exists()
     run(binary, "auth", "status", ok=False)
-print("PASS: native package install/upgrade, corruption rejection, CLI setup, local BYOK privacy, real Git tasks, unpaid diagnostics")
+print("PASS: native package install/upgrade, corruption rejection, CLI setup, local BYOK privacy, real Git tasks, model/context configuration, unpaid diagnostics")
