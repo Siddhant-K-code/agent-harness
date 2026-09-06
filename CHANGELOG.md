@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add browser project setup with pinned commits, independent verifiers, model/context/budget controls, readiness checks and local BYOK configuration.
+- Add explicit approval of verified patches before pushing a new GitHub branch and opening a draft PR, with durable delivery status and reconciliation.
+- Add five historical regression tasks, unpaid corpus validation, a budgeted baseline runner and a paired skill-evaluation suite.
+- Preserve exact patch whitespace, accept GitHub's canonical repository casing when publishing or recovering older approvals, and freeze validated baseline verifiers before dispatching any task.
+
 ## v0.1.0
 
 First normal release, with the CLI and embedded local web app from rc.6, project-signed archives for four macOS/Linux targets, and a short installation command. The release workflow now supports normal releases marked Latest as well as prereleases. Existing rc.6 downloads remain unchanged.

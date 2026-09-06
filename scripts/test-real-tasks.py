@@ -52,6 +52,34 @@ class AccountingTests(unittest.TestCase):
                 self.run_baseline()
             dispatch.assert_not_called()
 
+    def test_verifiers_are_frozen_before_first_dispatch(self):
+        seen = []
+        def response(command, **kwargs):
+            # All private snapshots must exist before any paid task starts.
+            for index in range(5):
+                self.assertTrue((self.output / f"case-{index}.task.json").is_file())
+                self.assertEqual((self.output / f"case-{index}.verify.sh").read_bytes(), b"exit 1\n")
+            spec = json.loads(Path(command[command.index("--task") + 1]).read_text())
+            seen.append(Path(spec["verifier"]).read_bytes())
+            if len(seen) == 1:
+                (self.prepared / "verify.sh").write_bytes(b"exit 0\n")
+            kwargs["stdout"].write(json.dumps({"run_id": "c" * 32, "state": "failed", "verified": False, "estimated_usd_uncached": 0.01, "billing_unknown": False, "cleanup_confirmed": True}))
+            return subprocess.CompletedProcess(command, 1)
+        with patch.object(subprocess, "run", side_effect=response):
+            self.run_baseline()
+        self.assertEqual(seen, [b"exit 1\n"] * 5)
+
+    def test_snapshot_failure_prevents_all_dispatches(self):
+        write_bytes = Path.write_bytes
+        def fail_last_verifier(path, contents):
+            if path == self.output.resolve() / "case-4.verify.sh":
+                raise OSError("snapshot storage unavailable")
+            return write_bytes(path, contents)
+        with patch.object(Path, "write_bytes", fail_last_verifier), patch.object(subprocess, "run") as dispatch:
+            with self.assertRaises(OSError):
+                self.run_baseline()
+            dispatch.assert_not_called()
+
     def test_interrupted_dispatch_has_durable_unknown_reservation(self):
         def interrupt(*args, **kwargs):
             journal = json.loads((self.output / "baseline.json").read_text())

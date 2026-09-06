@@ -123,7 +123,7 @@ func localGit(ctx context.Context, w workspace.Workspace, stdin io.Reader, extra
 	if err != nil || r.ExitCode != 0 || r.Truncated {
 		return "", fmt.Errorf("prepare approved Git commit failed: %v (exit %d)", err, r.ExitCode)
 	}
-	return strings.TrimSpace(r.Output), nil
+	return r.Output, nil
 }
 func createCommit(ctx context.Context, w workspace.Workspace, patch, title string, created time.Time) (string, error) {
 	if _, err := localGit(ctx, w, strings.NewReader(patch), nil, "apply", "--index", "--binary", "-"); err != nil {
@@ -133,13 +133,14 @@ func createCommit(ctx context.Context, w workspace.Workspace, patch, title strin
 	if err != nil {
 		return "", err
 	}
-	// git diff has a trailing newline. Compare the exact bytes after restoring it.
-	if strings.TrimRight(actual, "\n") != strings.TrimRight(patch, "\n") {
+	// Diff whitespace is patch data, including trailing spaces and context lines.
+	if actual != patch {
 		return "", errors.New("staged diff does not match the verified patch")
 	}
 	env := []string{"GIT_AUTHOR_NAME=Agent Harness", "GIT_AUTHOR_EMAIL=harness@users.noreply.github.com", "GIT_COMMITTER_NAME=Agent Harness", "GIT_COMMITTER_EMAIL=harness@users.noreply.github.com", "GIT_AUTHOR_DATE=" + created.UTC().Format(time.RFC3339), "GIT_COMMITTER_DATE=" + created.UTC().Format(time.RFC3339)}
 	if _, err := localGit(ctx, w, nil, env, "commit", "--no-gpg-sign", "-m", title); err != nil {
 		return "", err
 	}
-	return localGit(ctx, w, nil, nil, "rev-parse", "HEAD")
+	commit, err := localGit(ctx, w, nil, nil, "rev-parse", "HEAD")
+	return strings.TrimSpace(commit), err
 }

@@ -238,6 +238,7 @@ func (s Service) Prepare(ctx context.Context, id string) (Preview, error) {
 	if base != report.BaseCommit {
 		return Preview{}, errors.New("default branch has moved from the verified base; run and verify a fresh task before publishing")
 	}
+	repo = remote.Name
 	staging, err := os.MkdirTemp(dir, "staging-")
 	if err != nil {
 		return Preview{}, err
@@ -268,7 +269,7 @@ func (s Service) Prepare(ctx context.Context, id string) (Preview, error) {
 	record := Record{Schema: 1, Approval: a, Hash: statefile.Hash(a), Status: "prepared", Staging: filepath.Base(staging)}
 	// Preserve a prior create attempt when refreshing the same target/commit.
 	// A delayed push may become visible after reconciliation reported absence.
-	record.BranchAttempted = oldErr == nil && old.BranchAttempted && old.Approval.Repository == a.Repository && old.Approval.Branch == a.Branch && old.Approval.Commit == a.Commit
+	record.BranchAttempted = oldErr == nil && old.BranchAttempted && strings.EqualFold(old.Approval.Repository, a.Repository) && old.Approval.Branch == a.Branch && old.Approval.Commit == a.Commit
 	if err := s.save(record); err != nil {
 		return Preview{}, err
 	}
@@ -397,7 +398,9 @@ func (s Service) Publish(ctx context.Context, id, approvalHash string) (Record, 
 	return s.finish(r, pr)
 }
 func (s Service) finish(r Record, pr PullRequest) (Record, error) {
-	if pr.Head.SHA != r.Approval.Commit || pr.Number < 1 || !strings.HasPrefix(pr.URL, "https://github.com/"+r.Approval.Repository+"/pull/") {
+	// Older approvals may retain the origin's casing instead of GitHub's spelling.
+	expectedURL := fmt.Sprintf("https://github.com/%s/pull/%d", r.Approval.Repository, pr.Number)
+	if pr.Head.SHA != r.Approval.Commit || pr.Number < 1 || !strings.EqualFold(pr.URL, expectedURL) {
 		return r, errors.New("GitHub PR does not match the approved commit; inspect and reconcile")
 	}
 	r.PR, r.Status = &pr, "complete"
