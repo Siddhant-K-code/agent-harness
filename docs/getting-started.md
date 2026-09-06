@@ -9,13 +9,13 @@ Download the archive matching your computer from the repository's [Releases page
 For an accessible preview release, this example uses GitHub CLI on Apple Silicon. Change `darwin_arm64` to `darwin_amd64`, `linux_amd64`, or `linux_arm64` as needed:
 
 ```sh
-gh release download v0.1.0-rc.2 --repo Siddhant-K-code/agent-harness \
-  --pattern 'agent-harness_v0.1.0-rc.2_darwin_arm64.tar.gz' \
+gh release download v0.1.0-rc.3 --repo Siddhant-K-code/agent-harness \
+  --pattern 'agent-harness_v0.1.0-rc.3_darwin_arm64.tar.gz' \
   --pattern 'checksums.txt' --dir harness-download
 cd harness-download
 shasum -a 256 --ignore-missing -c checksums.txt
 mkdir bundle
-tar -xzf agent-harness_v0.1.0-rc.2_darwin_arm64.tar.gz -C bundle
+tar -xzf agent-harness_v0.1.0-rc.3_darwin_arm64.tar.gz -C bundle
 sh bundle/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 harness version
