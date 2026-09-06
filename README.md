@@ -135,4 +135,4 @@ go vet ./...
 
 Tests cover real Git boundaries, Docker isolation, SDK/MCP protocols, budget admission, cancellation, persistence and recovery. Test doubles are confined to tests; production uses real model and executor paths. [Architecture](docs/architecture.md) · [Recovery](docs/recovery.md) · [Evidence](docs/evidence/2026-09-06/project-chat/README.md).
 
-Distribution remains **private**, the license is undecided, and macOS binaries are not notarized. [Distribution status](DISTRIBUTION.md).
+Licensed under the [MIT License](LICENSE).

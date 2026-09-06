@@ -1,10 +1,10 @@
 name: Package preview
 on:
   pull_request:
-    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'DISTRIBUTION.md', 'LICENSE', '.github/workflows/package.yml']
   push:
     branches: [main]
-    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'DISTRIBUTION.md', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'DISTRIBUTION.md', 'LICENSE', '.github/workflows/package.yml']
   workflow_dispatch:
     inputs:
       version:

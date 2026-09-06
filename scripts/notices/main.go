@@ -42,7 +42,7 @@ func main() {
 	}
 	sort.Strings(keys)
 	var out strings.Builder
-	out.WriteString("Third-party notices for dependencies linked into harness.\nThese notices do not license agent-harness itself; see DISTRIBUTION.md.\n\n")
+	out.WriteString("Third-party notices for dependencies linked into harness.\nAgent-harness is licensed under MIT; see LICENSE. Dependencies retain their own licenses and notices below.\n\n")
 	for _, key := range keys {
 		fmt.Fprintf(&out, "=== %s ===\n", key)
 		entries, err := os.ReadDir(modules[key])
