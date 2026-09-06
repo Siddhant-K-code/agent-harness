@@ -71,13 +71,14 @@ type Approval struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 type Record struct {
-	Schema    int          `json:"schema"`
-	Approval  Approval     `json:"approval"`
-	Hash      string       `json:"approval_hash"`
-	Status    string       `json:"status"`
-	Staging   string       `json:"staging"`
-	PR        *PullRequest `json:"pull_request,omitempty"`
-	Attention string       `json:"attention,omitempty"`
+	Schema          int          `json:"schema"`
+	Approval        Approval     `json:"approval"`
+	Hash            string       `json:"approval_hash"`
+	Status          string       `json:"status"`
+	Staging         string       `json:"staging"`
+	BranchAttempted bool         `json:"branch_attempted,omitempty"`
+	PR              *PullRequest `json:"pull_request,omitempty"`
+	Attention       string       `json:"attention,omitempty"`
 }
 type Preview struct {
 	Record
@@ -265,6 +266,9 @@ func (s Service) Prepare(ctx context.Context, id string) (Preview, error) {
 	a := Approval{RunID: id, Actor: actor, Repository: repo, BaseBranch: remote.DefaultBranch, BaseCommit: base, Branch: "harness/" + id, Commit: commit, PatchSHA256: report.PatchSHA256, ReportSHA256: statefile.Hash(report), Title: title, ExpiresAt: time.Now().UTC().Add(30 * time.Minute)}
 	a.Body = fmt.Sprintf("%s\n\nIndependent verifier passed against base `%s`. Review the patch and repository CI before merging.\n\n- Run: `%s`\n- Patch SHA-256: `%s`\n- Verifier SHA-256: `%s`\n- Estimated model cost: $%.6f (uncached estimate)\n\n<!-- harness-run:%s patch:%s -->", title, a.BaseCommit, id, a.PatchSHA256, report.VerifierSHA256, report.EstimatedUSD, id, a.PatchSHA256)
 	record := Record{Schema: 1, Approval: a, Hash: statefile.Hash(a), Status: "prepared", Staging: filepath.Base(staging)}
+	// Preserve a prior create attempt when refreshing the same target/commit.
+	// A delayed push may become visible after reconciliation reported absence.
+	record.BranchAttempted = oldErr == nil && old.BranchAttempted && old.Approval.Repository == a.Repository && old.Approval.Branch == a.Branch && old.Approval.Commit == a.Commit
 	if err := s.save(record); err != nil {
 		return Preview{}, err
 	}
@@ -348,15 +352,17 @@ func (s Service) Publish(ctx context.Context, id, approvalHash string) (Record, 
 		if err != nil {
 			return r, err
 		}
-		if head != "" {
+		if head != "" && (!r.BranchAttempted || head != r.Approval.Commit) {
 			return r, errors.New("target branch already exists; refusing to overwrite it")
 		}
-		r.Status = "publishing_branch"
-		if err = s.save(r); err != nil {
-			return r, err
-		}
-		if err = s.Remote.Push(ctx, w, r.Approval); err != nil {
-			return r, err
+		if head == "" {
+			r.Status, r.BranchAttempted = "publishing_branch", true
+			if err = s.save(r); err != nil {
+				return r, err
+			}
+			if err = s.Remote.Push(ctx, w, r.Approval); err != nil {
+				return r, err
+			}
 		}
 		r.Status = "branch_pushed"
 		if err = s.save(r); err != nil {

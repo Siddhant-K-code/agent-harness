@@ -273,6 +273,36 @@ func TestUnknownPRStaysUnknownAndMovingBaseIsReported(t *testing.T) {
 		t.Fatal("moved PR base hidden")
 	}
 }
+
+func TestLatePushAfterAbsentReconciliationIsAdoptedWithoutRepush(t *testing.T) {
+	s, remote, id := fixture(t)
+	ctx := context.Background()
+	p, err := s.Prepare(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote.losePush = true
+	if _, err = s.Publish(ctx, id, p.Hash); err == nil {
+		t.Fatal("missing transport failure")
+	}
+	remote.branch = "" // GitHub read has not observed the completed push yet.
+	r, err := s.Reconcile(ctx, id)
+	if err != nil || r.Status != "prepared" || !r.BranchAttempted {
+		t.Fatal(r, err)
+	}
+	// A user may refresh an expired preview while the original push settles.
+	fresh, err := s.Prepare(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote.branch = p.Approval.Commit
+	if _, err = s.Publish(ctx, id, fresh.Hash); err != nil {
+		t.Fatal(err)
+	}
+	if remote.pushes != 1 || remote.posts != 1 {
+		t.Fatal("repeated late push or PR", remote.pushes, remote.posts)
+	}
+}
 func TestOriginRejectsCredentialAndForeignURLs(t *testing.T) {
 	for _, raw := range []string{"https://github.com/owner/repo.git", "git@github.com:owner/repo.git", "ssh://git@github.com/owner/repo"} {
 		if got, err := Origin(raw); err != nil || got != "owner/repo" {
