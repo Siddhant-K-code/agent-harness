@@ -29,6 +29,7 @@ go run ./scripts/notices "$staging/THIRD-PARTY-NOTICES.txt"
   cd "$staging"
   if command -v sha256sum >/dev/null 2>&1; then sha256sum harness > harness.sha256
   else shasum -a 256 harness > harness.sha256; fi
-  tar -czf "$output/agent-harness_${version}_${target_os}_${target_arch}.tar.gz" .
+  # macOS otherwise injects AppleDouble metadata files into release archives.
+  COPYFILE_DISABLE=1 tar -czf "$output/agent-harness_${version}_${target_os}_${target_arch}.tar.gz" .
 )
 echo "$output/agent-harness_${version}_${target_os}_${target_arch}.tar.gz"

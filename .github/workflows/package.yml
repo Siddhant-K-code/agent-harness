@@ -1,18 +1,22 @@
-name: Package preview
+name: Package and signed release
 on:
   pull_request:
-    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'LICENSE', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'security/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'LICENSE', '.github/workflows/package.yml']
   push:
     branches: [main]
-    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'LICENSE', '.github/workflows/package.yml']
+    paths: ['cmd/harness/**', 'internal/**', 'examples/**', 'integrations/agenttrace/**', 'scripts/**', 'security/**', 'go.*', 'docs/getting-started.md', 'docs/compaction-and-learning.md', 'docs/ui-and-integrations.md', 'LICENSE', '.github/workflows/package.yml']
   workflow_dispatch:
     inputs:
       version:
-        description: Version for the private preview (for example v0.1.0-rc.5)
-        default: v0.1.0-rc.5
+        description: Explicit release version (for example v0.1.0-rc.6)
+        default: v0.1.0-rc.6
         required: true
       draft_release:
-        description: Create a draft prerelease after all package checks pass
+        description: Sign artifacts and create a draft prerelease after package checks
+        type: boolean
+        default: false
+      publish_release:
+        description: Publish the signed draft after downloaded assets verify (repository visibility is unchanged)
         type: boolean
         default: false
 permissions:
@@ -37,12 +41,14 @@ jobs:
     env:
       PACKAGE_VERSION: ${{ inputs.version || 'v0.0.0-dev' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
       - name: Check credential and task setup behavior
@@ -51,7 +57,9 @@ jobs:
         run: sh scripts/package.sh "$PACKAGE_VERSION" "${{ matrix.os }}" "${{ matrix.arch }}"
       - name: Install and exercise the native archive (no model or AWS calls)
         run: python3 scripts/smoke-package.py "dist/agent-harness_${PACKAGE_VERSION}_${{ matrix.os }}_${{ matrix.arch }}.tar.gz"
-      - uses: actions/upload-artifact@v4
+      - name: Verify signed bootstrap, real installation, and tampering rejection
+        run: python3 scripts/test-release.py --archive "dist/agent-harness_${PACKAGE_VERSION}_${{ matrix.os }}_${{ matrix.arch }}.tar.gz"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: package-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*.tar.gz
@@ -61,21 +69,81 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.draft_release && github.ref == 'refs/heads/main'
     needs: package
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
     env:
       PACKAGE_VERSION: ${{ inputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: package-*
           path: dist
           merge-multiple: true
-      - name: Draft only; no public publish
+      - name: Sign the tested artifacts and verify against the pinned public key
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.HARNESS_RELEASE_SIGNING_KEY }}
         run: |
-          cd dist
-          sha256sum *.tar.gz > checksums.txt
-          gh release create "$PACKAGE_VERSION" *.tar.gz checksums.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION — private preview" --generate-notes
+          set -eu
+          test -n "$RELEASE_SIGNING_KEY" || { echo 'HARNESS_RELEASE_SIGNING_KEY must be configured before requesting a signed release.' >&2; exit 1; }
+          umask 077
+          signing_file=$(mktemp "$RUNNER_TEMP/harness-signing.XXXXXX")
+          trap 'rm -f "$signing_file"' EXIT
+          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$signing_file"
+          unset RELEASE_SIGNING_KEY
+          python3 scripts/sign-release.py "$PACKAGE_VERSION" "$GITHUB_SHA" --key-file "$signing_file"
+      - name: Create signed draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          sha, version = os.environ['GITHUB_SHA'], os.environ['PACKAGE_VERSION']
+          Path('release-notes.md').write_text(f'''Native CLI and embedded web app for macOS/Linux, Intel/AMD and ARM. MIT licensed.
+
+          All four archives are project-signed through an RSA-3072/SHA-256 checksum manifest. The installer verifies the pinned project key before extraction. These are not Apple Developer ID signed or notarized builds.
+
+          With Python 3.9+, OpenSSL, and authenticated GitHub CLI with repository access:
+
+          ```sh
+          installer=$(mktemp)
+          gh api -H 'Accept: application/vnd.github.raw+json' 'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref={sha}' > "$installer" &&
+          python3 "$installer" --version {version}
+          rm -f "$installer"
+          ```
+
+          [Complete setup, Docker, AgentTrace and BYOK](https://github.com/Siddhant-K-code/agent-harness/blob/{sha}/docs/getting-started.md#complete-local-setup). Setup submits no paid model requests.
+
+          Source commit: `{sha}`.
+          ''')
+          PY
+          gh release create "$PACKAGE_VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --prerelease --title "agent-harness $PACKAGE_VERSION" --notes-file release-notes.md --generate-notes
+      - name: Download and authenticate uploaded assets before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release download "$PACKAGE_VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded-release
+          python3 - <<'PY'
+          import importlib.util, os
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location('installer', 'scripts/install-release.py')
+          installer = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(installer)
+          _, metadata = installer.verify_release(Path('downloaded-release'), os.environ['PACKAGE_VERSION'], 'linux_amd64', all_files=True)
+          assert metadata['commit'] == os.environ['GITHUB_SHA'], 'Uploaded release source does not match this run'
+          print('All uploaded artifacts authenticated against the committed public key.')
+          PY
+      - name: Publish verified prerelease
+        if: inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$PACKAGE_VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
