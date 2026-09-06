@@ -1,17 +1,17 @@
 Delegate a coding task. Review a verified patch.
 
-This private preview adds configurable models and context windows to the packaged CLI:
+This private preview adds budgeted context compaction, versioned skills, persistent observations, and an evaluated skill improvement cycle:
 
-- `harness models` lists configured model IDs, snapshots and capacity limits.
-- `harness config show` displays or previews effective settings. `harness config set` saves validated changes to the task JSON without changing relative repository/verifier paths.
-- `init`, `run`, and `doctor` accept `--model`, `--context-window`, `--max-output-tokens`, `--max-total-tokens`, and `--max-usd`. Run/doctor overrides are temporary.
-- Request admission reserves output inside the selected context window and checks the separate cumulative token/dollar budgets. Context overflow stops before generation; there is no silent truncation or automatic compaction.
-- GPT-5.4 configurations capable of entering the long-context pricing tier use conservative higher estimates from the first request. Reports and recovery retain the effective configuration and pricing basis.
+- Compaction preserves the original task, selected skills, recent complete tool exchanges and latest verifier feedback. Summary requests share the task's token, time and dollar budgets. The controller rejects low-yield summaries, waits for context growth, and records source/summary hashes and usage.
+- Skills are imported explicitly, scoped to a repository, content-addressed, and pinned per run. Rollback restores a previous active revision.
+- Learning captures terminal observations with provenance and expiry. Real OpenAI requests propose inactive skill revisions. Paired real coding runs, including a holdout, gate promotion on independent checks and measured improvement. Unknown billing, cleanup uncertainty, stale evidence, and changed task/verifier identities prevent promotion.
+- `harness learn init learning-lab` creates real tasks, independent verifiers, a seed skill and an evaluation suite. `harness learn cycle` performs one bounded proposal/evaluation/promotion iteration within an explicit model budget.
+- AgentTrace exports compaction usage and selected skill/compaction metadata through its native reader. Raw histories and skill instructions remain private by default.
 
-The preview also includes local BYOK login with hidden input, a bundled real demo, diagnostics, optional native AgentTrace setup, and checksummed macOS/Linux archives for amd64/arm64. No Go compiler is needed to use a release binary. Git and a running Docker daemon are required for the local demo. Setup does not upload keys or call a model.
+Local BYOK login, configurable models/context, guided setup, diagnostics and checksummed macOS/Linux archives remain included. No Go compiler is needed to use a release binary. Git and a running Docker daemon are required for the learning lab. Setup does not upload keys or call a model. OpenAI is the implemented model provider; AWS remains an advanced execution option.
 
-Download the matching archive and `checksums.txt`, verify the archive, extract it, and run its `install.sh`. See `GETTING-STARTED.md` for the full instructions. Existing tasks default to a 200,000-token combined context window; output now counts toward this limit. Newly initialized tasks retain the $0.50 estimated model budget.
+Download the matching archive and `checksums.txt`, verify the archive, extract it, and run `install.sh`. Read `GETTING-STARTED.md` and `COMPACTION-AND-LEARNING.md`. New tasks enable compaction and local observation capture; existing tasks retain their previous behavior until configured. Skill selection and paid learning cycles remain explicit.
 
-Validation covers context/output boundaries, model capacities, long-context budget admission, recovery pricing, exact provider model IDs, native trace projection, and archive installation/configuration on all four native targets. No new paid model/AWS run or large-context coding benchmark is claimed.
+Validation includes race tests, real Docker isolation/artifact checks, native AgentTrace export, and installation/setup on four native targets. Live GPT-5.4 validation covered a corrected compaction run, a real skill proposal, eight passing paired evaluations, promotion, rollback and re-promotion. Total estimated model cost was $0.3353225 including the initial failed stress run; no new AWS calls were made. The observed 5.48% evaluation cost reduction is a small-sample result, not statistical proof of general improvement. Model-generated skill advice remains fallible.
 
-Distribution remains private and the project license is undecided. This draft is for evaluation, not a public release. Binaries are not Apple-notarized. OpenAI is the only implemented provider; Docker is the simple default, while AWS requires the documented advanced setup.
+Distribution remains private and the project license is undecided. This is a draft evaluation preview. Automatic crash resume, model weight training, distributed workers and the planned Distill/ContextLab/ThinkBudget/LLMTraceFX adapters are not included. Binaries are not Apple-notarized.
