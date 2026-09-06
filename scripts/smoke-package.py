@@ -12,6 +12,9 @@ import tarfile
 import tempfile
 import termios
 import time
+import urllib.request
+import urllib.error
+import urllib.parse
 
 
 archive = Path(sys.argv[1]).resolve()
@@ -137,7 +140,42 @@ with tempfile.TemporaryDirectory(prefix="harness-package-") as temporary:
     assert any(c["name"] == "Model" and not c["ok"] for c in diagnostic["checks"])
     assert not (demo / ".harness" / "harness.db").exists()
     assert not (demo / ".harness" / "runs").exists()
+    # Exercise the embedded HTTP UI from the installed binary, without model calls.
+    assert (bundle / "UI-AND-INTEGRATIONS.md").is_file()
+    prompt = json.loads(run(binary, "prompt", "--json"))
+    assert prompt["version"] == "coding-v2" and len(prompt["tools"]) == 6
+    run(binary, "integrations", "add-mcp", "--name", "docs", "--url", "https://example.invalid/mcp", "--allow-tool", "search", cwd=lab)
+    run(binary, "integrations", "select", "--task", "words.task.json", "--mcp-tool", "docs/search", cwd=lab)
+    assert json.loads((lab / "words.task.json").read_text())["repository"] == "repo"
+    run(binary, "integrations", "select", "--task", "words.task.json", "--clear", cwd=lab)
+    run(binary, "integrations", "check", "--task", "words.task.json", cwd=lab)
+    process = subprocess.Popen([binary, "serve", "--task", "words.task.json", "--port", "0"], cwd=lab, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert select.select([process.stdout], [], [], 10)[0], "dashboard did not start"
+        line = process.stdout.readline().strip()
+        assert line.startswith("Local dashboard: "), line
+        url = urllib.parse.urlsplit(line.removeprefix("Local dashboard: "))
+        token = urllib.parse.parse_qs(url.fragment)["token"][0]
+        origin = urllib.parse.urlunsplit((url.scheme, url.netloc, "", "", ""))
+        # This is a local API test, not browser automation.
+        with urllib.request.urlopen(origin + "/", timeout=10) as response:
+            assert b"Agent Harness" in response.read()
+        try:
+            urllib.request.urlopen(origin + "/api/overview", timeout=10)
+            raise AssertionError("dashboard accepted missing auth")
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+        request = urllib.request.Request(origin + "/api/overview", headers={"Authorization": "Bearer " + token})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            body = response.read()
+            overview = json.loads(body)
+            assert overview["key_present"] and not overview["runs"]
+            assert b"package-test-credential" not in body
+            assert overview["tasks"][0]["name"] == "words"
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
     run(binary, "auth", "logout")
     assert not key_path.exists()
     run(binary, "auth", "status", ok=False)
-print("PASS: native package install/upgrade, corruption rejection, CLI setup, local BYOK privacy, real Git tasks, model/context configuration, skills/rollback, learning lab setup, unpaid diagnostics")
+print("PASS: native package install/upgrade, corruption rejection, CLI setup, local BYOK privacy, real Git tasks, model/context configuration, skills/rollback, learning lab setup, embedded authenticated UI, integration policy, unpaid diagnostics")

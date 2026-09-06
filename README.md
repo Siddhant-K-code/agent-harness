@@ -2,7 +2,7 @@
 
 **Delegate a coding task. Review a verified patch.**
 
-A CLI for bounded coding work: give it a committed repository, a goal, an independent verifier, and a model budget. It runs a real agent in an isolated workspace and returns the patch, check results, usage estimate, and cleanup status. Your source checkout stays unchanged.
+A CLI and local dashboard for bounded coding work: give it a committed repository, a goal, an independent verifier, and a model budget. It runs a real agent in an isolated workspace and returns the patch, check results, usage estimate, and cleanup status. Your source checkout stays unchanged.
 
 Bring your own OpenAI key. Run locally with Docker; AWS AgentCore is an advanced, explicitly configured backend. The controller calls OpenAI directly. There is no harness account, hosted credential proxy, or automatic trace upload.
 
@@ -36,6 +36,16 @@ harness trace RUN_ID
 ```
 
 Results go to stdout, progress to stderr. Flags go before a run ID. State defaults to `.harness` in the current directory; use `--state-dir PATH` consistently when working elsewhere. Failed runs exit nonzero.
+
+## Use the local dashboard and connected tools
+
+```sh
+harness serve --task harness.task.json
+```
+
+Open the private local link printed by the command. Inspect real runs, patches, verifier results, costs, compactions, skill versions and the system prompt. Launch prepared tasks with model/context controls and a server-enforced spending ceiling. The UI ships inside the binary; no frontend installation is needed.
+
+The runner includes typed repository tools, a versioned prompt, explicit Streamable HTTP MCP connections, and host-brokered GitHub reads/private cloning. See [UI, MCP, GitHub and credential setup](docs/ui-and-integrations.md). External tools are selected per task; credentials remain outside the sandbox. GitHub writes, MCP OAuth/stdio, and automatic crash resume are still pending.
 
 ## Choose the model and context
 

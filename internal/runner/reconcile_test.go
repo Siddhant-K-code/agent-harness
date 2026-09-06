@@ -322,3 +322,35 @@ func TestReconcileMissingExecutionIsUncertain(t *testing.T) {
 		t.Fatalf("lost unresolved dispatch: %+v %v", current, err)
 	}
 }
+
+func TestReconcilePreservesUncertainMCPDispatchAndPromptIdentity(t *testing.T) {
+	root := t.TempDir()
+	ctx := context.Background()
+	db, err := store.Open(filepath.Join(root, "harness.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	r, err := db.Create(ctx, crashSpec(t.TempDir(), "/unused/verifier"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.StartOwned(ctx, r.ID, "dead-worker"); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []struct {
+		kind string
+		data any
+	}{{"prompt.selected", map[string]string{"version": "coding-v2", "sha256": "prompt-hash"}}, {"integrations.selected", map[string]string{"sha256": "catalog-hash"}}, {"tool.requested", map[string]string{"ID": "call-1", "Name": "mcp_call", "Arguments": "{}"}}} {
+		if _, err = db.RecordOwned(ctx, r.ID, "dead-worker", event.kind, event.data, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report, err := Reconcile(ctx, db, root, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.ExternalOutcomeUnknown || report.PromptVersion != "coding-v2" || report.PromptSHA256 != "prompt-hash" || report.IntegrationSHA256 != "catalog-hash" || report.Verified {
+		t.Fatalf("lost external uncertainty: %+v", report)
+	}
+}

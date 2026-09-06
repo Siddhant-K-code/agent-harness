@@ -9,13 +9,13 @@ Download the archive matching your computer from the repository's [Releases page
 For an accessible preview release, this example uses GitHub CLI on Apple Silicon. Change `darwin_arm64` to `darwin_amd64`, `linux_amd64`, or `linux_arm64` as needed:
 
 ```sh
-gh release download v0.1.0-rc.3 --repo Siddhant-K-code/agent-harness \
-  --pattern 'agent-harness_v0.1.0-rc.3_darwin_arm64.tar.gz' \
+gh release download v0.1.0-rc.4 --repo Siddhant-K-code/agent-harness \
+  --pattern 'agent-harness_v0.1.0-rc.4_darwin_arm64.tar.gz' \
   --pattern 'checksums.txt' --dir harness-download
 cd harness-download
 shasum -a 256 --ignore-missing -c checksums.txt
 mkdir bundle
-tar -xzf agent-harness_v0.1.0-rc.3_darwin_arm64.tar.gz -C bundle
+tar -xzf agent-harness_v0.1.0-rc.4_darwin_arm64.tar.gz -C bundle
 sh bundle/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 harness version
@@ -54,6 +54,12 @@ The default directory must not already exist. Choose another with `harness init 
 `doctor` checks the selected credential source, priced model, Git commit, verifier file, Docker image/backend, and writable state directory. `--json` produces structured diagnostics. It does not validate the key against OpenAI, execute the verifier, or prove dependencies are complete. A valid key with access to the selected model and API billing is required for `run`.
 
 Successful output includes `run_id`, `verified`, `cleanup_confirmed`, `estimated_usd_uncached`, and `patch`. Open the patch path to review the changes. Reports and events remain under `.harness`; your source checkout is unchanged. A failed verifier can trigger a bounded repair attempt. Failure, cancellation, exhausted budgets, or unconfirmed cleanup exit nonzero.
+
+## Local dashboard and integrations
+
+Run `harness serve --task harness.task.json` and open the private local link. Use the dashboard to review runs and patches, inspect skills and prompts, and launch prepared tasks with model/context settings. The task's spending limit is the UI's ceiling. `harness serve` without a task enables inspection/cancellation only.
+
+The UI is embedded in the binary. GitHub integration additionally requires `gh`; MCP uses Streamable HTTP and explicit server/tool selection. See [the complete setup guide](ui-and-integrations.md) or `UI-AND-INTEGRATIONS.md` in the archive for credentials, supported operations and current limits.
 
 ## Model and context settings
 

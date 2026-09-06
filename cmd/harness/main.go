@@ -32,6 +32,14 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "serve":
+		return serveCommand(args[1:])
+	case "prompt":
+		return promptCommand(args[1:])
+	case "integrations":
+		return integrationsCommand(args[1:])
+	case "github":
+		return githubCommand(args[1:])
 	case "version", "--version":
 		fmt.Fprintf(os.Stdout, "harness %s (commit %s)\n", version, commit)
 		return nil

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Siddhant-K-code/agent-harness/internal/integrations"
 	"github.com/Siddhant-K-code/agent-harness/internal/skills"
 )
 
@@ -37,20 +38,21 @@ func (l Limits) ContextWindow() int64 {
 }
 
 type Spec struct {
-	Compaction    *Compaction  `json:"compaction,omitempty"`
-	Skills        []skills.Ref `json:"skills,omitempty"`
-	Learn         bool         `json:"learn,omitempty"`
-	Backend       string       `json:"backend,omitempty"`
-	AWS           *AWSConfig   `json:"aws,omitempty"`
-	SchemaVersion int          `json:"schema_version"`
-	Name          string       `json:"name"`
-	Goal          string       `json:"goal"`
-	Repository    string       `json:"repository"`
-	Ref           string       `json:"ref"`
-	Model         string       `json:"model"`
-	Image         string       `json:"image"`
-	Verifier      string       `json:"verifier"`
-	Limits        Limits       `json:"limits"`
+	Integrations  integrations.Selection `json:"integrations,omitempty,omitzero"`
+	Compaction    *Compaction            `json:"compaction,omitempty"`
+	Skills        []skills.Ref           `json:"skills,omitempty"`
+	Learn         bool                   `json:"learn,omitempty"`
+	Backend       string                 `json:"backend,omitempty"`
+	AWS           *AWSConfig             `json:"aws,omitempty"`
+	SchemaVersion int                    `json:"schema_version"`
+	Name          string                 `json:"name"`
+	Goal          string                 `json:"goal"`
+	Repository    string                 `json:"repository"`
+	Ref           string                 `json:"ref"`
+	Model         string                 `json:"model"`
+	Image         string                 `json:"image"`
+	Verifier      string                 `json:"verifier"`
+	Limits        Limits                 `json:"limits"`
 }
 
 // Compaction is an explicit bounded summarization policy. Omission disables it
@@ -114,6 +116,9 @@ func Decode(r io.Reader) (Spec, error) {
 	return s, s.Validate()
 }
 func (s Spec) Validate() error {
+	if err := s.Integrations.Validate(); err != nil {
+		return err
+	}
 	if len(s.Skills) > 8 {
 		return errors.New("at most eight selected skills")
 	}

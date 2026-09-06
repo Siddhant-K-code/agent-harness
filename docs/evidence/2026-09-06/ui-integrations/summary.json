@@ -1,0 +1,71 @@
+{
+  "run_id": "8dde7bea25fe859a07c0c7d9f2213f72",
+  "model": "gpt-5.4",
+  "backend": "docker",
+  "state": "completed",
+  "verified": true,
+  "verification_attempts": 1,
+  "input_tokens": 45992,
+  "output_tokens": 687,
+  "estimated_usd_uncached": 0.125285,
+  "billing_unknown": false,
+  "cleanup_confirmed": true,
+  "prompt_version": "coding-v2",
+  "prompt_sha256": "0e87e089182c8995aefb54d1c4ca801e5de5a1c1b66d9dcb3e7fb46efc0a6eea",
+  "integration_sha256": "2662e8d9c72948bef6a4eae089ebee3991549c3a893baf8b55b58b872c4481ad",
+  "base_commit": "0d2bc5f9ac067d10384adcaabf7da55b39485c39",
+  "image_id": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+  "verifier_sha256": "03a0a88e5cc53d6a2cfbc1223e06e0d93d72e1e1305ba87ba423325fc3fa78e7",
+  "model_budget_usd": 0.3,
+  "model_context_window_tokens": 32768,
+  "reserved_output_tokens": 1024,
+  "launched_from": "embedded local dashboard",
+  "tool_calls": [
+    {
+      "sequence": 10,
+      "name": "github_read"
+    },
+    {
+      "sequence": 15,
+      "name": "mcp_call",
+      "mcp_tool": "search_openai_docs"
+    },
+    {
+      "sequence": 21,
+      "name": "mcp_call",
+      "mcp_tool": "fetch_openai_doc"
+    },
+    {
+      "sequence": 26,
+      "name": "list_files"
+    },
+    {
+      "sequence": 33,
+      "name": "read_file"
+    },
+    {
+      "sequence": 41,
+      "name": "write_file"
+    },
+    {
+      "sequence": 48,
+      "name": "exec"
+    },
+    {
+      "sequence": 55,
+      "name": "finish"
+    }
+  ],
+  "journal_records": 59,
+  "native_agenttrace_events": 33,
+  "github_private_clone": "passed; plain HTTPS remote without embedded credentials",
+  "aws_calls": 0,
+  "started_at": "2026-09-06T06:06:26.110509Z",
+  "ended_at": "2026-09-06T06:06:52.746957Z",
+  "limitations": [
+    "One smoke task, not a quality benchmark",
+    "Model alias gpt-5.4; not a snapshot comparison",
+    "MCP service costs and AWS billing not measured",
+    "Raw provider payloads, GitHub responses and local paths omitted"
+  ]
+}

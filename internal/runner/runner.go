@@ -15,15 +15,19 @@ import (
 	"time"
 
 	"github.com/Siddhant-K-code/agent-harness/internal/contextwindow"
+	"github.com/Siddhant-K-code/agent-harness/internal/integrations"
 	"github.com/Siddhant-K-code/agent-harness/internal/learning"
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/ownership"
 	"github.com/Siddhant-K-code/agent-harness/internal/process"
+	"github.com/Siddhant-K-code/agent-harness/internal/prompt"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
 	"github.com/Siddhant-K-code/agent-harness/internal/skills"
+	"github.com/Siddhant-K-code/agent-harness/internal/statefile"
 	"github.com/Siddhant-K-code/agent-harness/internal/store"
 	"github.com/Siddhant-K-code/agent-harness/internal/task"
+	"github.com/Siddhant-K-code/agent-harness/internal/tooling"
 	"github.com/Siddhant-K-code/agent-harness/internal/workspace"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/openai/openai-go/v3/responses"
@@ -35,31 +39,35 @@ type Runner struct {
 	Progress  io.Writer
 }
 type Report struct {
-	Observation          string          `json:"observation,omitempty"`
-	LearningError        string          `json:"learning_error,omitempty"`
-	Skills               []skills.Ref    `json:"skills,omitempty"`
-	Compactions          int             `json:"compactions,omitempty"`
-	CompactionAttempts   int             `json:"compaction_attempts,omitempty"`
-	ModelSettings        *model.Settings `json:"model_settings,omitempty"`
-	Backend              string          `json:"backend,omitempty"`
-	AWSBillingUSD        *float64        `json:"aws_billing_usd"`
-	RunID                string          `json:"run_id"`
-	State                store.State     `json:"state"`
-	Reason               string          `json:"reason"`
-	Model                string          `json:"model"`
-	BaseCommit           string          `json:"base_commit"`
-	ImageID              string          `json:"image_id"`
-	VerifierSHA256       string          `json:"verifier_sha256"`
-	InputTokens          int64           `json:"input_tokens"`
-	OutputTokens         int64           `json:"output_tokens"`
-	EstimatedUSD         float64         `json:"estimated_usd_uncached"`
-	BillingUnknown       bool            `json:"billing_unknown"`
-	Verified             bool            `json:"verified"`
-	VerificationAttempts int             `json:"verification_attempts"`
-	Patch                string          `json:"patch,omitempty"`
-	Reconciled           bool            `json:"reconciled,omitempty"`
-	CleanupConfirmed     bool            `json:"cleanup_confirmed,omitempty"`
-	CheckpointAvailable  bool            `json:"checkpoint_available,omitempty"`
+	PromptVersion          string          `json:"prompt_version,omitempty"`
+	PromptSHA256           string          `json:"prompt_sha256,omitempty"`
+	IntegrationSHA256      string          `json:"integration_sha256,omitempty"`
+	ExternalOutcomeUnknown bool            `json:"external_outcome_unknown,omitempty"`
+	Observation            string          `json:"observation,omitempty"`
+	LearningError          string          `json:"learning_error,omitempty"`
+	Skills                 []skills.Ref    `json:"skills,omitempty"`
+	Compactions            int             `json:"compactions,omitempty"`
+	CompactionAttempts     int             `json:"compaction_attempts,omitempty"`
+	ModelSettings          *model.Settings `json:"model_settings,omitempty"`
+	Backend                string          `json:"backend,omitempty"`
+	AWSBillingUSD          *float64        `json:"aws_billing_usd"`
+	RunID                  string          `json:"run_id"`
+	State                  store.State     `json:"state"`
+	Reason                 string          `json:"reason"`
+	Model                  string          `json:"model"`
+	BaseCommit             string          `json:"base_commit"`
+	ImageID                string          `json:"image_id"`
+	VerifierSHA256         string          `json:"verifier_sha256"`
+	InputTokens            int64           `json:"input_tokens"`
+	OutputTokens           int64           `json:"output_tokens"`
+	EstimatedUSD           float64         `json:"estimated_usd_uncached"`
+	BillingUnknown         bool            `json:"billing_unknown"`
+	Verified               bool            `json:"verified"`
+	VerificationAttempts   int             `json:"verification_attempts"`
+	Patch                  string          `json:"patch,omitempty"`
+	Reconciled             bool            `json:"reconciled,omitempty"`
+	CleanupConfirmed       bool            `json:"cleanup_confirmed,omitempty"`
+	CheckpointAvailable    bool            `json:"checkpoint_available,omitempty"`
 }
 
 func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runErr error) {
@@ -258,7 +266,34 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		report.CleanupConfirmed = true
 		return res, execErr
 	}
+	brokerCtx, stopConnect := context.WithTimeout(ctx, 30*time.Second)
+	broker, err := integrations.Connect(brokerCtx, r.Root, spec.Integrations)
+	stopConnect()
+	if err != nil {
+		return report, err
+	}
+	defer broker.Close()
+	broker.Protect(r.Key)
+	definitions := append(tooling.Native(), broker.Definitions()...)
+	manifest := prompt.Build(report.Backend, definitions)
+	report.PromptVersion, report.PromptSHA256 = manifest.Version, manifest.SHA256
+	if err = writeJSON(filepath.Join(root, "prompt.json"), manifest); err != nil {
+		return report, err
+	}
+	if err = record("prompt.selected", map[string]any{"version": manifest.Version, "sha256": manifest.SHA256}, false); err != nil {
+		return report, err
+	}
+	if !spec.Integrations.Empty() {
+		if err = writeJSON(filepath.Join(root, "integrations.lock.json"), broker.Manifest); err != nil {
+			return report, err
+		}
+		report.IntegrationSHA256 = statefile.Hash(broker.Manifest)
+		if err = record("integrations.selected", map[string]any{"sha256": report.IntegrationSHA256, "selection": spec.Integrations}, false); err != nil {
+			return report, err
+		}
+	}
 	client := model.New(r.Key, spec.Model)
+	client.Prompt, client.ToolDefinitions = manifest.Instructions, definitions
 	input := []responses.ResponseInputItemUnionParam{responses.ResponseInputItemParamOfMessage(spec.Goal, "user")}
 	if len(skillVersions) > 0 {
 		if err = writeJSON(filepath.Join(root, "skills.lock.json"), skillVersions); err != nil {
@@ -270,6 +305,9 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				return report, err
 			}
 		}
+	}
+	if catalog := broker.Catalog(); catalog != "" {
+		input = append(input, responses.ResponseInputItemParamOfMessage(catalog, "user"))
 	}
 	history := contextwindow.Window{Pinned: input}
 	checkpoint := func() error {
@@ -340,6 +378,39 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 		}
 		var result any
 		switch call.Name {
+		case "list_files", "read_file", "search_text", "write_file":
+			command, readonly, e := tooling.Command(call.Name, call.Arguments)
+			if e != nil {
+				result = map[string]string{"error": e.Error()}
+				break
+			}
+			res, e := execute(ctx, step, command, readonly)
+			if errors.Is(e, sandbox.ErrCleanup) {
+				return report, e
+			}
+			if ctx.Err() != nil {
+				return report, ctx.Err()
+			}
+			if e != nil {
+				result = map[string]any{"error": e.Error(), "result": res}
+			} else {
+				result = res
+			}
+		case "mcp_call", "github_read":
+			toolCtx, stopTool := context.WithTimeout(ctx, time.Duration(spec.Limits.ToolTimeoutMS)*time.Millisecond)
+			var e error
+			result, e = broker.Call(toolCtx, call.Name, call.Arguments)
+			stopTool()
+			if e != nil {
+				result = map[string]string{"error": e.Error()}
+			}
+			if errors.Is(e, integrations.ErrUncertain) {
+				report.ExternalOutcomeUnknown = true
+				if err = record("tool.finished", map[string]any{"call_id": call.ID, "result": result, "outcome_unknown": true}, false); err != nil {
+					return report, err
+				}
+				return report, e
+			}
 		case "exec":
 			var args struct {
 				Command string `json:"command"`

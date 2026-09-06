@@ -26,14 +26,15 @@ func (p *Projection) AttachOutcome(path string) error {
 	}
 	defer f.Close()
 	var r struct {
-		RunID                string   `json:"run_id"`
-		State                string   `json:"state"`
-		Verified             *bool    `json:"verified"`
-		BillingUnknown       *bool    `json:"billing_unknown"`
-		InputTokens          *int64   `json:"input_tokens"`
-		OutputTokens         *int64   `json:"output_tokens"`
-		EstimatedUSD         *float64 `json:"estimated_usd_uncached"`
-		VerificationAttempts *int     `json:"verification_attempts"`
+		ExternalOutcomeUnknown *bool    `json:"external_outcome_unknown"`
+		RunID                  string   `json:"run_id"`
+		State                  string   `json:"state"`
+		Verified               *bool    `json:"verified"`
+		BillingUnknown         *bool    `json:"billing_unknown"`
+		InputTokens            *int64   `json:"input_tokens"`
+		OutputTokens           *int64   `json:"output_tokens"`
+		EstimatedUSD           *float64 `json:"estimated_usd_uncached"`
+		VerificationAttempts   *int     `json:"verification_attempts"`
 	}
 	d := json.NewDecoder(io.LimitReader(f, 64<<10+1))
 	if err := d.Decode(&r); err != nil {
@@ -51,6 +52,6 @@ func (p *Projection) AttachOutcome(path string) error {
 	p.Outcome = map[string]any{"state": r.State, "verified": r.Verified, "billing_unknown": r.BillingUnknown,
 		"input_tokens": r.InputTokens, "output_tokens": r.OutputTokens, "estimated_usd_uncached": r.EstimatedUSD,
 		"verification_attempts": r.VerificationAttempts, "measurement_source": "controller_report",
-		"cost_kind": "estimate_not_invoice"}
+		"cost_kind": "estimate_not_invoice", "external_outcome_unknown": r.ExternalOutcomeUnknown}
 	return nil
 }

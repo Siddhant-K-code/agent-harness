@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Siddhant-K-code/agent-harness/internal/credentials"
+	"github.com/Siddhant-K-code/agent-harness/internal/integrations"
 	"github.com/Siddhant-K-code/agent-harness/internal/model"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox"
 	"github.com/Siddhant-K-code/agent-harness/internal/sandbox/agentcore"
@@ -45,6 +46,11 @@ func doctor(ctx context.Context, spec task.Spec, root string, key credentials.Ke
 		compaction = fmt.Sprintf("at %d%% input capacity; %d recent turns; %d summary tokens; up to %d compactions", c.TriggerPercent, c.KeepRecentTurns, c.MaxSummaryTokens, c.MaxCompactions)
 	}
 	add("Compaction", compaction, nil)
+	configuration, configErr := integrations.Load(root)
+	if configErr == nil {
+		configErr = configuration.Authorize(spec.Integrations)
+	}
+	add("Integrations", "operator policy checked; use harness integrations check to connect", configErr)
 	add("Learning", fmt.Sprintf("local observation capture: %t; skill promotion requires evaluation", spec.Learn), nil)
 	settings, err := model.ResolveSettings(spec)
 	add("Model", fmt.Sprintf("%s; estimated model budget $%.2f per run", spec.Model, spec.Limits.MaxUSD), err)

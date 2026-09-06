@@ -23,6 +23,12 @@ func TestResponsesProtocolPreservesReasoningAndCallIDs(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Error(err)
 		}
+		if body["instructions"] != "test run prompt" {
+			t.Error("count and generation must use the same selected prompt")
+		}
+		if len(body["tools"].([]any)) != 6 {
+			t.Error("native tool catalog missing from count or generation")
+		}
 		if body["model"] != "gpt-5.4" || body["parallel_tool_calls"] != false {
 			t.Errorf("wrong API parameters: %v", body)
 		}
@@ -37,7 +43,7 @@ func TestResponsesProtocolPreservesReasoningAndCallIDs(t *testing.T) {
 		w.Write([]byte(`{"id":"resp_test","status":"completed","output":[{"id":"rs_test","type":"reasoning","summary":[],"encrypted_content":"opaque-test-value"},{"id":"fc_test","type":"function_call","call_id":"call_test","name":"exec","arguments":"{\"command\":\"pwd\"}","status":"completed"}],"usage":{"input_tokens":500,"output_tokens":20,"total_tokens":520}}`))
 	}))
 	defer server.Close()
-	c := Client{API: openai.NewClient(option.WithBaseURL(server.URL+"/"), option.WithAPIKey("test-key"), option.WithMaxRetries(0)), Model: "gpt-5.4"}
+	c := Client{API: openai.NewClient(option.WithBaseURL(server.URL+"/"), option.WithAPIKey("test-key"), option.WithMaxRetries(0)), Model: "gpt-5.4", Prompt: "test run prompt"}
 	input := []responses.ResponseInputItemUnionParam{responses.ResponseInputItemParamOfMessage("fix", "user")}
 	count, err := c.Count(context.Background(), input)
 	if err != nil || count != 500 {

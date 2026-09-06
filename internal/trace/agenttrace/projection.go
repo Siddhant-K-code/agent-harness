@@ -74,12 +74,12 @@ func fields(src map[string]any, keys ...string) map[string]any {
 
 func resultSummary(v any, content bool) map[string]any {
 	m, _ := v.(map[string]any)
-	out := fields(m, "exit_code", "truncated", "verified")
+	out := fields(m, "exit_code", "truncated", "verified", "is_error", "omitted_nontext_items")
 	if _, ok := m["error"]; ok {
 		out["has_error"] = true
 	}
 	if content {
-		for k, v := range fields(m, "output", "stderr", "error", "instruction") {
+		for k, v := range fields(m, "output", "stderr", "error", "instruction", "text", "structured_content") {
 			out[k] = v
 		}
 	}
@@ -162,6 +162,10 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			side["data"] = v
 		case "checkpoint.saved":
 			side["data"] = fields(d, "source_sequence", "workspace_sha256")
+		case "prompt.selected":
+			side["data"] = fields(d, "version", "sha256")
+		case "integrations.selected":
+			side["data"] = fields(d, "sha256")
 		case "skill.loaded":
 			side["data"] = fields(d, "id", "version", "source")
 		case "context.compacted":
@@ -211,7 +215,7 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 				return p, errors.New("duplicate tool call ID")
 			}
 			name := call.Name
-			if name != "exec" && name != "finish" {
+			if name != "exec" && name != "finish" && name != "read_file" && name != "list_files" && name != "search_text" && name != "write_file" && name != "mcp_call" && name != "github_read" {
 				name = "unknown"
 			}
 			e.Type = "tool_call"
@@ -220,7 +224,7 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			if content {
 				args, err := object(json.RawMessage(call.Arguments))
 				if err == nil {
-					e.Data["arguments"] = fields(args, "command", "summary")
+					e.Data["arguments"] = fields(args, "command", "summary", "path", "text", "content", "server", "tool", "arguments_json", "repository", "resource", "number")
 				} else {
 					h["arguments"] = "invalid_json_omitted"
 				}
@@ -243,6 +247,9 @@ func Build(run store.Run, events []store.Event, content bool) (Projection, error
 			e.DurationMS = &duration
 			e.Data["result"] = resultSummary(d["result"], content)
 			h["call_id"] = id
+			if unknown, ok := d["outcome_unknown"].(bool); ok {
+				h["outcome_unknown"] = unknown
+			}
 			delete(calls, id)
 		case "verification.finished":
 			v := fields(d, "passed", "attempt")

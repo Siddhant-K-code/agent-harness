@@ -314,3 +314,17 @@ func TestOutcomeValidation(t *testing.T) {
 		t.Fatal("report text leaked")
 	}
 }
+
+func TestExternalToolProjectionPreservesFailureWithoutContent(t *testing.T) {
+	r, events := fixture(t)
+	events[4].Data = []byte(`{"ID":"call_test","Name":"mcp_call","Arguments":"{\"server\":\"docs\",\"tool\":\"search\",\"arguments_json\":\"{}\"}"}`)
+	events[5].Data = []byte(`{"call_id":"call_test","outcome_unknown":true,"result":{"is_error":true,"text":["` + canary + `"]}}`)
+	p, err := Build(r, events, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(p)
+	if bytes.Contains(b, []byte(canary)) || !bytes.Contains(b, []byte(`"tool_name":"mcp_call"`)) || !bytes.Contains(b, []byte(`"outcome_unknown":true`)) || !bytes.Contains(b, []byte(`"is_error":true`)) {
+		t.Fatalf("MCP metadata lost or private content leaked: %s", b)
+	}
+}

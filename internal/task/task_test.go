@@ -30,3 +30,15 @@ func TestStrictRealTask(t *testing.T) {
 		t.Fatal("invalid timeout accepted")
 	}
 }
+
+// Older evidence hashes must not change merely because integration support exists.
+func TestEmptyIntegrationsKeepLegacyTaskJSON(t *testing.T) {
+	spec, err := Load("../../examples/normalize-tags/task.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(spec)
+	if strings.Contains(string(b), `"integrations"`) {
+		t.Fatal("empty integrations changed legacy task evidence")
+	}
+}

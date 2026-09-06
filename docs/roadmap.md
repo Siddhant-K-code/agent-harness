@@ -38,9 +38,13 @@ Add `internal/context` with source manifests and an optional Distill Go adapter.
 
 Acceptance: token savings are reported with verified completion, latency, and failures. A smaller prompt alone is insufficient to enable a policy by default.
 
-## 5. Typed tools, authorization, and incremental evidence
+## 5a. Local UI, typed tools, MCP and GitHub reads — implemented
 
-Add repository tools and task-selected external tools behind a broker. Implement sponsor authentication and per-dispatch OpenFGA checks before external mutations. Begin GitHub integration with read-only issue/diff/check access. Add actionsec for workflow changes and task-specific diagnostics/browser checks when needed.
+The embedded `harness serve` dashboard displays real run evidence and launches prepared tasks with bounded model/context settings. `coding-v2` records a prompt/tool contract per run. Typed file/list/search/write tools share the existing executor lifecycle. The operator-scoped Streamable HTTP MCP broker discovers and pins selected tool schemas, rechecks policy, and stops on uncertain effects. GitHub reads and authenticated private clones use host `gh` credentials. See [setup and limits](ui-and-integrations.md) and [live validation](evidence/2026-09-06/ui-integrations/README.md).
+
+## 5b. GitHub review/approval, distributed authorization, and incremental evidence — pending
+
+Extend the local broker with patch-bound approval for GitHub writes. Implement sponsor authentication and per-dispatch OpenFGA checks before external mutations. Read-only issue/diff/check access is available; scoped branch pushes and draft PR creation remain pending. Add actionsec for workflow changes and task-specific diagnostics/browser checks when needed.
 
 Deliver the outbox incrementally with per-sink cursors, idempotency, partial-write recovery, and visible exporter failures. Keep control state independent of sink availability.
 

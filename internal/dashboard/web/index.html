@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Agent Harness · Local workspace</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/" aria-label="Agent Harness"
+        ><span class="mark">h</span>agent harness
+        <span class="preview">preview</span></a
+      ><span class="local"><i></i> Local workspace</span>
+    </header>
+    <div class="layout">
+      <aside>
+        <p class="eyebrow">WORKSPACE</p>
+        <nav aria-label="Workspace">
+          <button data-view="runs" class="nav active">
+            Runs <span>01</span></button
+          ><button data-view="skills" class="nav">Skills <span>02</span></button
+          ><button data-view="connections" class="nav">
+            Connections <span>03</span></button
+          ><button data-view="prompt" class="nav">
+            System prompt <span>04</span>
+          </button>
+        </nav>
+        <div class="aside-note">
+          <p>Inspect. Run. Verify.</p>
+          <small
+            >Task evidence stays on this machine. Model requests use your own
+            API key.</small
+          >
+        </div>
+      </aside>
+      <main>
+        <div id="notice" role="status" aria-live="polite"></div>
+        <div id="view">
+          <p class="empty">Connecting to your local harness…</p>
+        </div>
+      </main>
+    </div>
+    <dialog id="run-dialog">
+      <form id="run-form">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">NEW RUN</p>
+            <h2>Give the agent a task</h2>
+          </div>
+          <button
+            type="button"
+            id="close-dialog"
+            class="quiet"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <label>Prepared task<select id="preset" required></select></label>
+        <p id="preset-info" class="muted"></p>
+        <label
+          >Goal<textarea
+            id="goal"
+            rows="4"
+            maxlength="32000"
+            required
+          ></textarea>
+        </label>
+        <div class="form-grid">
+          <label
+            >Model<select id="model">
+              <option>gpt-5.4</option>
+              <option>gpt-5.4-mini</option>
+              <option>gpt-5.4-2026-03-05</option>
+              <option>gpt-5.4-mini-2026-03-17</option>
+            </select></label
+          ><label
+            >Maximum model spend ($)<input
+              id="usd"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required /></label
+          ><label
+            >Context window (tokens)<input
+              id="context"
+              type="number"
+              min="1024"
+              max="1050000"
+              required /></label
+          ><label
+            >Reserved output (tokens)<input
+              id="output"
+              type="number"
+              min="256"
+              max="128000"
+              required
+          /></label>
+        </div>
+        <fieldset>
+          <legend>Selected skills</legend>
+          <div id="skill-options"></div>
+        </fieldset>
+        <p class="muted" id="run-budget-note"></p>
+        <p class="error" id="form-error" role="alert"></p>
+        <button type="submit" class="primary" id="submit-run">
+          Start paid run
+        </button>
+      </form>
+    </dialog>
+  </body>
+</html>

@@ -51,6 +51,7 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 	}
 	prepared := map[string]bool{}
 	var pending bool
+	externalPending := map[string]bool{}
 	var lastVerificationPassed bool
 	settings, priceErr := model.ResolveSettings(r.Spec)
 	price := settings.Price()
@@ -72,6 +73,42 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 	report.Backend = executor.Capabilities().Backend
 	for _, event := range events {
 		switch event.Type {
+		case "prompt.selected":
+			var d struct {
+				Version string `json:"version"`
+				SHA256  string `json:"sha256"`
+			}
+			if err := json.Unmarshal(event.Data, &d); err != nil {
+				return report, err
+			}
+			report.PromptVersion, report.PromptSHA256 = d.Version, d.SHA256
+		case "integrations.selected":
+			var d struct {
+				SHA256 string `json:"sha256"`
+			}
+			if err := json.Unmarshal(event.Data, &d); err != nil {
+				return report, err
+			}
+			report.IntegrationSHA256 = d.SHA256
+		case "tool.requested":
+			var d struct{ ID, Name string }
+			if err := json.Unmarshal(event.Data, &d); err != nil {
+				return report, err
+			}
+			if d.Name == "mcp_call" {
+				externalPending[d.ID] = true
+			}
+		case "tool.finished":
+			var d struct {
+				ID      string `json:"call_id"`
+				Unknown bool   `json:"outcome_unknown"`
+			}
+			if err := json.Unmarshal(event.Data, &d); err != nil {
+				return report, err
+			}
+			delete(externalPending, d.ID)
+			report.ExternalOutcomeUnknown = report.ExternalOutcomeUnknown || d.Unknown
+
 		case "context.compacted":
 			var d struct {
 				Accepted bool `json:"accepted"`
@@ -160,6 +197,7 @@ func Reconcile(ctx context.Context, db *store.Store, root, id string) (Report, e
 			report.VerificationAttempts++
 		}
 	}
+	report.ExternalOutcomeUnknown = report.ExternalOutcomeUnknown || len(externalPending) > 0
 	report.BillingUnknown = report.BillingUnknown || pending
 	if priceErr == nil {
 		report.EstimatedUSD = price.Cost(report.InputTokens, report.OutputTokens)

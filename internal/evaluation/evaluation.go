@@ -110,6 +110,9 @@ func Reserve(suite Suite, maxUSD float64) error {
 		if err != nil {
 			return err
 		}
+		if !s.Integrations.Empty() {
+			return errors.New("learning evaluations require tasks without live external integrations; external responses cannot yet be frozen")
+		}
 		if _, err := model.ResolveSettings(s); err != nil {
 			return err
 		}
@@ -155,6 +158,9 @@ func freeze(ctx context.Context, root, dir string, suite Suite, candidate skills
 		s, err := task.Load(c.Task)
 		if err != nil {
 			return nil, 0, err
+		}
+		if !s.Integrations.Empty() {
+			return nil, 0, errors.New("learning evaluations cannot freeze live external integrations")
 		}
 		scope, err := skills.Scope(s.Repository)
 		if err != nil {

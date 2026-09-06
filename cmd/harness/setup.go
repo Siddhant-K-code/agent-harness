@@ -34,6 +34,10 @@ First run (Git and a running Docker daemon required):
   harness run                  Run the task; real API charges, default max $0.50
 
 Commands:
+  serve [--task FILE]          Open a local dashboard; add tasks to enable runs
+  prompt [--json]              Inspect the versioned system prompt and native tools
+  integrations                Configure, select and check MCP/GitHub capabilities
+  github status|clone|read     Use host GitHub credentials; no sandbox token copies
   init [flags] [directory]     Create a demo or a task for your own repository
   models [--json]              List configured models and their capacity limits
   config show|set [flags]      Preview or save model, context and budget settings
