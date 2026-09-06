@@ -1,31 +1,72 @@
 # Install and run agent-harness
 
-This is a private preview. Binary archives are built for macOS and Linux, on Intel/AMD (`amd64`) and ARM (`arm64`); Windows binaries are not shipped. Git and a browser are enough to open the installed app and prepare the bundled project. Questions require an OpenAI API key, model access, API billing and internet access. Local coding tasks additionally require Docker. Go and Python are not required to run the core CLI or web app. Python is only needed for optional native AgentTrace export.
+Binary archives are built for macOS and Linux, on Intel/AMD (`amd64`) and ARM (`arm64`); Windows binaries are not shipped. Git and a browser are enough to open the installed app and prepare the bundled project. Questions require an OpenAI API key, model access, API billing and internet access. Local coding tasks additionally require Docker. The signature-verifying installer uses Python 3.9+ and OpenSSL; the installed core CLI/web app needs no Python or Go runtime. Optional native AgentTrace uses Python 3.12+.
 
 The web app runs on your machine through `harness serve`. There is no hosted sign-up URL, shared team server, or separate frontend installation.
 
 ## Install a binary
 
-Download the archive matching your computer from the repository's [Releases page](https://github.com/Siddhant-K-code/agent-harness/releases). A draft is visible only to repository collaborators with sufficient access. A public anonymous installer is not available while the repository/release is private. CI also provides `package-OS-ARCH` artifacts, containing the same archives.
-
-For an accessible preview release, this example uses GitHub CLI on Apple Silicon. Change `darwin_arm64` to `darwin_amd64`, `linux_amd64`, or `linux_arm64` as needed:
+With Python 3.9+, OpenSSL and authenticated GitHub CLI (`gh auth login`) with repository access, this downloads the bootstrap from an immutable source commit and installs the matching project-signed archive. Signed releases start at `v0.1.0-rc.6`; earlier drafts and ordinary CI artifacts are not project-signed.
 
 ```sh
-gh release download v0.1.0-rc.5 --repo Siddhant-K-code/agent-harness \
-  --pattern 'agent-harness_v0.1.0-rc.5_darwin_arm64.tar.gz' \
-  --pattern 'checksums.txt' --dir harness-download
-cd harness-download
-shasum -a 256 --ignore-missing -c checksums.txt
-mkdir bundle
-tar -xzf agent-harness_v0.1.0-rc.5_darwin_arm64.tar.gz -C bundle
-sh bundle/install.sh
+(
+  set -eu
+  installer=$(mktemp)
+  trap 'rm -f "$installer"' EXIT
+  gh api -H 'Accept: application/vnd.github.raw+json' \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=3195faf0497d4d300139624ac91d268458afb4e7' > "$installer"
+  python3 "$installer" --version v0.1.0-rc.6
+)
 export PATH="$HOME/.local/bin:$PATH"
 harness version
 ```
 
-On Linux, `sha256sum --ignore-missing -c checksums.txt` is equivalent. The installer checks platform compatibility and the bundled binary's SHA-256 before installing. It uses `~/.local/bin` without sudo, refuses an existing installation unless given `--force`, and accepts `--bin-dir PATH`. Checksums detect corruption; they are not signatures from an independent authority. The preview is not Apple-notarized; platform trust policy may require approval for a downloaded executable.
+The installer verifies the RSA-3072/SHA-256 project signature using its embedded public key, then checks the archive hash and signed version/source metadata **before extraction**. It uses `~/.local/bin` without sudo, refuses an existing installation unless given `--force`, and accepts `--bin-dir PATH`. Add `--verify-only` to authenticate without installing. A failed signature never falls back to an unsigned install. See [trust root, manual verification and release workflow](release-verification.md).
 
-To upgrade, download the next version, verify it, and run its installer with `--force`. To uninstall, remove the installed `harness` binary. Credentials and task artifacts remain until you explicitly remove them.
+The archives are project-signed, not Apple Developer ID signed or notarized. Platform trust policy can still require approval for a downloaded executable. Download access follows the repository's visibility; a private repository needs authenticated access. The bootstrap's `--public` mode works only when the release and repository are publicly accessible.
+
+To upgrade, repeat the pinned bootstrap command with the desired signed version and `--force`. To uninstall, remove the installed `harness` binary. Credentials and task artifacts remain until you explicitly remove them.
+
+## Complete local setup
+
+On macOS with [Homebrew](https://brew.sh/), the complete command installs the prerequisites and starts [Colima](https://formulae.brew.sh/formula/colima), then prepares the demo and opens the local server:
+
+```sh
+(
+  set -eu
+  brew install git gh python@3.12 openssl@3 docker colima
+  export PATH="$(brew --prefix openssl@3)/bin:$HOME/.local/bin:$PATH"
+  gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
+  colima start
+  installer=$(mktemp)
+  trap 'rm -f "$installer"' EXIT
+  gh api -H 'Accept: application/vnd.github.raw+json' \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=3195faf0497d4d300139624ac91d268458afb4e7' > "$installer"
+  python3.12 "$installer" --version v0.1.0-rc.6 \
+    --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
+)
+```
+
+If Docker Desktop or another daemon is already running, omit `docker colima` from the Homebrew install and omit `colima start`. The script uses your current Docker context. Python is explicitly [3.12](https://formulae.brew.sh/formula/python@3.12) for AgentTrace.
+
+On Linux, install Git, GitHub CLI, OpenSSL, Python 3.12+ with `venv`, and a working Docker daemon through your distribution's supported installation method. [Official Docker Engine installation](https://docs.docker.com/engine/install/) includes distribution-specific setup. Check that `docker info` works as your regular user. Then use the **Install a binary** command above, replacing its Python invocation with:
+
+```sh
+python3 "$installer" --version v0.1.0-rc.6 \
+  --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
+```
+
+These setup flags perform the following steps:
+
+1. Install the verified native CLI, create a new real Git demo and independent verifier.
+2. With `--with-docker`, check the daemon and pull `node:22-alpine`.
+3. With `--with-trace`, install pinned AgentTrace into the task's private virtual environment. `--python PATH` selects its Python 3.12+ interpreter.
+4. With `--login`, reuse a configured OpenAI key or prompt with hidden input and save it locally. No key is uploaded during setup.
+5. With `--with-docker`, run unpaid readiness checks; with `--serve`, start the embedded web app and print its private access link.
+
+No paid model request is submitted. Package/image downloads need internet access and disk space. Choose a new `--setup` directory; existing projects are never overwritten. Add `--force` only when replacing the installed CLI. If a dependency/login check fails after installation, the binary and any new task remain available; finish setup from that directory using the individual commands below. To use chat without Docker or AgentTrace, omit their two flags. Skills, compaction and evaluated learning ship in the binary; MCP servers, GitHub grants and AWS access require your own project-specific configuration.
+
+Add `~/.local/bin` to your shell's PATH for future sessions. Ctrl-C stops the web server. Return later with `cd ~/harness-demo` and `harness serve --task harness.task.json`, then open the newly printed complete link.
 
 ## Install from source
 

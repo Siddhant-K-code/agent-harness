@@ -10,6 +10,30 @@ A local CLI and project chat for coding work with a budget, an independent verif
 
 [Get started](docs/getting-started.md) · [Chat & integrations](docs/ui-and-integrations.md) · [How it works](docs/architecture.md)
 
+## Install and open the app
+
+For macOS with [Homebrew](https://brew.sh/) and repository access, this prepares the CLI, Docker runtime, bundled project, native AgentTrace, local BYOK login, and web app:
+
+```sh
+(
+  set -eu
+  brew install git gh python@3.12 openssl@3 docker colima
+  export PATH="$(brew --prefix openssl@3)/bin:$HOME/.local/bin:$PATH"
+  gh auth status --hostname github.com >/dev/null 2>&1 || gh auth login --hostname github.com --web
+  colima start
+  installer=$(mktemp)
+  trap 'rm -f "$installer"' EXIT
+  gh api -H 'Accept: application/vnd.github.raw+json' \
+    'repos/Siddhant-K-code/agent-harness/contents/scripts/install-release.py?ref=3195faf0497d4d300139624ac91d268458afb4e7' > "$installer"
+  python3.12 "$installer" --version v0.1.0-rc.6 \
+    --setup "$HOME/harness-demo" --with-docker --with-trace --login --serve
+)
+```
+
+Open the complete local link printed by the server. Setup downloads dependencies and prompts for your key locally; **no paid model request is submitted**. Choose a new setup directory if `~/harness-demo` exists. Add `--force` only to replace an existing CLI. Keep `~/.local/bin` on your shell's PATH for later use.
+
+The bootstrap is pinned to a source commit and verifies **project-signed archives before extraction**. These builds are not Apple-notarized. Repository access is needed while the repository is private. [Linux, existing Docker and minimal installation](docs/getting-started.md#complete-local-setup) · [Signature verification](docs/release-verification.md).
+
 ## See it work
 
 <p align="center">
@@ -40,11 +64,11 @@ The web app runs on **your computer**: `harness serve` starts the local server a
 | You need | When |
 | --- | --- |
 | macOS or Linux, Git, and a browser | Required; native archives cover Intel/AMD and ARM. Windows binaries are not shipped. |
-| The installed `harness` CLI | Required. [Install a checksummed archive](docs/getting-started.md#install-a-binary) or [build from source](docs/getting-started.md#install-from-source). |
+| The installed `harness` CLI | Required. [Install a signed archive](docs/getting-started.md#install-a-binary) or [build from source](docs/getting-started.md#install-from-source). |
 | Your OpenAI API key, API billing/model access, and internet access | To submit questions or coding tasks. Inference runs through OpenAI. |
 | A running Docker daemon and the task's image | For local coding runs. Read-only project questions do not need Docker. |
 
-**Private preview:** users need repository access; draft downloads require sufficient collaborator permissions. There is no anonymous public installer yet. Node, npm, Go, Python and AWS are not required to use an installed binary's core web app. Go is needed only to build from source; Python, `gh`, MCP and AWS are optional integrations.
+The signed installer needs Python 3.9+, OpenSSL and authenticated `gh` with repository access. Once installed, the core CLI/web app needs no Python, Node, npm or Go runtime. Native AgentTrace additionally uses Python 3.12+. MCP and AWS are separately configured integrations.
 
 After installing the CLI:
 
