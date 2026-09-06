@@ -65,11 +65,12 @@ function metric(label, value) {
 function render() {
   if (!data) return;
   const root = $("#view");
-  if (view !== "chat") root.replaceChildren();
+  if (view !== "chat" && view !== "projects") root.replaceChildren();
   document
     .querySelectorAll("[data-view]")
     .forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   if (view === "chat") renderChat(root);
+  if (view === "projects") renderProjects(root);
   if (view === "runs") renderRuns(root);
   if (view === "skills") renderSkills(root);
   if (view === "connections") renderConnections(root);
@@ -234,6 +235,17 @@ function renderDetail() {
     metrics.append(c);
   }
   body.append(metrics);
+  if (
+    r.state === "completed" &&
+    p.verified &&
+    p.cleanup_confirmed &&
+    p.patch_sha256
+  )
+    body.append(
+      button("Review & create draft PR", "primary section-gap", () =>
+        openDelivery(r.id),
+      ),
+    );
   if (r.reason) body.append(el("p", "muted", r.reason));
   if (p.external_outcome_unknown)
     body.append(
@@ -612,7 +624,7 @@ async function refresh() {
     notice(
       data.key_present
         ? ""
-        : "Configure your key locally with harness auth login to enable paid runs.",
+        : "Configure your key in Projects or with harness auth login to enable paid runs.",
     );
     if (changed || !$("#view").children.length) render();
     await refreshDetail();

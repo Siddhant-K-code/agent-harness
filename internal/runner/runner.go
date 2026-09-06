@@ -67,6 +67,7 @@ type Report struct {
 	Verified               bool            `json:"verified"`
 	VerificationAttempts   int             `json:"verification_attempts"`
 	Patch                  string          `json:"patch,omitempty"`
+	PatchSHA256            string          `json:"patch_sha256,omitempty"`
 	Reconciled             bool            `json:"reconciled,omitempty"`
 	CleanupConfirmed       bool            `json:"cleanup_confirmed,omitempty"`
 	CheckpointAvailable    bool            `json:"checkpoint_available,omitempty"`
@@ -161,6 +162,8 @@ func (r Runner) Run(parent context.Context, spec task.Spec) (report Report, runE
 				runErr = errors.New(reason)
 			} else {
 				report.Patch = filepath.Join(root, "changes.patch")
+				sum := sha256.Sum256([]byte(patch))
+				report.PatchSHA256 = hex.EncodeToString(sum[:])
 			}
 		}
 		ended, e := r.Store.FinishOwned(finalCtx, created.ID, owner, state, reason)

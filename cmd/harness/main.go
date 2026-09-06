@@ -32,6 +32,8 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "publish":
+		return publishCommand(args[1:])
 	case "serve":
 		return serveCommand(args[1:])
 	case "prompt":

@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "<stdin>", line 13, in <module>
+TypeError: EvalReport.__init__() missing 2 required positional arguments: 'passed' and 'failed'

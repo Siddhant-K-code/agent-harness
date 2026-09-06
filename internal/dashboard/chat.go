@@ -35,7 +35,7 @@ func (s *Server) configuredChat(id string) (chat.Conversation, error) {
 	if e != nil {
 		return c, e
 	}
-	for _, t := range s.options.Tasks {
+	for _, t := range s.tasks() {
 		if presetHash(t) == c.PresetHash {
 			return c, nil
 		}
@@ -50,11 +50,12 @@ func (s *Server) createChat(w http.ResponseWriter, r *http.Request) {
 		fail(w, e)
 		return
 	}
-	if a.Task == nil || *a.Task < 0 || *a.Task >= len(s.options.Tasks) {
+	tasks := s.tasks()
+	if a.Task == nil || *a.Task < 0 || *a.Task >= len(tasks) {
 		fail(w, errors.New("select a configured project task"))
 		return
 	}
-	spec := s.options.Tasks[*a.Task]
+	spec := tasks[*a.Task]
 	hash := presetHash(spec)
 	ctx, stop := context.WithTimeout(r.Context(), 10*time.Second)
 	defer stop()
@@ -81,7 +82,7 @@ func (s *Server) getChat(w http.ResponseWriter, r *http.Request) {
 	_, configErr := s.configuredChat(c.ID)
 	available := configErr == nil
 	taskIndex := -1
-	for i, t := range s.options.Tasks {
+	for i, t := range s.tasks() {
 		if presetHash(t) == c.PresetHash {
 			taskIndex = i
 			break
